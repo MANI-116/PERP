@@ -63,6 +63,7 @@
     "apps/engine": {
       "name": "engine",
       "dependencies": {
+        "@repo/engine-package": "*",
         "@repo/types": "*",
         "redis": "^5.12.1",
       },
@@ -89,6 +90,7 @@
     "apps/wsServer": {
       "name": "wsserver",
       "dependencies": {
+        "@repo/types": "*",
         "redis": "^6.0.0",
         "ws": "^8.21.0",
       },
@@ -110,6 +112,18 @@
         "@types/bun": "latest",
         "@types/pg": "^8.20.0",
         "prisma": "^7.8.0",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/engine": {
+      "name": "@repo/engine-package",
+      "dependencies": {
+        "@repo/types": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -193,6 +207,8 @@
     "@repo/backend": ["@repo/backend@workspace:apps/backend"],
 
     "@repo/db": ["@repo/db@workspace:packages/db"],
+
+    "@repo/engine-package": ["@repo/engine-package@workspace:packages/engine"],
 
     "@repo/types": ["@repo/types@workspace:packages/types"],
 

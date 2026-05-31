@@ -1,5 +1,5 @@
 {
-  "name": "wsserver",
+  "name": "@repo/engine-package",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -10,8 +10,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "redis": "^6.0.0",
-    "ws": "^8.21.0",
     "@repo/types":"*"
   }
 }

@@ -1,0 +1,16 @@
+
+export interface RedisResponse{
+    name: string;
+    messages: {
+        id: string;
+        message: {
+            [x: string]: string;
+        };
+        millisElapsedFromDelivery?: number | undefined;
+        deliveriesCounter?: number | undefined;
+    }[]
+}
+
+export interface Qty{
+    qty:bigint;
+}
