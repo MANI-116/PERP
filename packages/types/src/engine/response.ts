@@ -1,13 +1,12 @@
-
+import { Position } from "@repo/engine-package"
 import type { TransmitOrder } from "../domain/order";
 
 
 export interface CreateUserResponse{
-    userId:string,
-    collateral:{
-        available:string,
-        locked:string
-    }
+    success?:boolean;
+    error?:string;
+    userId:string;
+    message?:string
 }
 
 export interface DeleteOrderResponse{
@@ -86,11 +85,7 @@ export interface OpenPositionsResponse{
     }
 }
 
-export interface CreateUserResponse{
-    error?:string,
-    message:string
-    
-}
+
 
 export interface RampUserResponse{
     error?:string,

@@ -1,5 +1,15 @@
+import { z } from "zod"
+import { type Id } from "@repo/types"
+export const dllSnapshortSchema = z.object({
+    snapshorts:z.array(z.string())
+})
+export const nodeSnapshotSchema = z.object({
+    valueSnapshot:z.string()
+})
 
-export class Node<T>{
+
+
+export class Node<T extends GiveSnapshot & Id>{
      left:Node<T>|null = null;
      right:Node<T>|null = null;
 
@@ -7,8 +17,17 @@ export class Node<T>{
 
     }
 
+    giveSnapshot(){
+        return {valueSnapshot:this.value.giveSnapshot()}
+    }
+
 }
-export class Dll<T>{
+
+interface GiveSnapshot{
+    giveSnapshot():string
+}
+export class Dll<T extends GiveSnapshot & Id>{
+
     private head:Node<T>;
     private tail:Node<T>;
     public length:number=0;
@@ -21,6 +40,22 @@ export class Dll<T>{
         return this.head;
     }
 
+    giveSnapshot(){
+      
+        const snapshots:string[] = [];
+        let current = this.head;
+        while(current.right != null){
+            snapshots.push(current.value.giveSnapshot());
+            current = current.right;
+
+        }
+        snapshots.push(current.value.giveSnapshot());
+
+        return JSON.stringify({ snapshots});
+
+    }
+
+   
     addNode(node:Node<T>){
         //we need to  connect node to the tail and point the tail to the node
         this.tail.right = node;

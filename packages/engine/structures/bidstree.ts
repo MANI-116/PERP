@@ -4,6 +4,18 @@ export class BidTree{
     constructor(){
         this.prices = [];
     }
+    clone(){
+        return this.prices.map((e)=>e);
+    }
+
+    static create(prices:bigint[]){
+        const bidTree = new BidTree();
+        prices.forEach((p)=>bidTree.prices.push(p));
+        return bidTree;
+    }
+    
+    
+   
     getLength(){
         return this.prices.length
     }

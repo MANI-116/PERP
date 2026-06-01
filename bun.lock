@@ -131,6 +131,9 @@
     },
     "packages/types": {
       "name": "@repo/types",
+      "dependencies": {
+        "@repo/engine-package": "*",
+      },
       "devDependencies": {
         "@types/bun": "latest",
       },

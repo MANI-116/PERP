@@ -1,16 +1,47 @@
 import type { Order } from "./order";
+import { z  } from "zod"
 
+const  userSnapshotSchema = z.object({
+    userId:z.string(),
+    available:z.string().transform((p)=>BigInt(p)),
+    locked:z.string().transform((p)=>BigInt(p)),
+    positions:z.array(z.object({
+        id:z.string(),
+        marketId:z.string()
+    }))
+})
+interface PositionIdentifier{
+    id:string,
+    marketId:string}
 export class User {
     public collateral:{available:bigint,locked:bigint};
-    public positions:Position[];
-    public orders:Order[];
-    public closedPositions:Position[]
+    public positions:PositionIdentifier[];
     
     constructor(public userId:string){
         this.positions = [];
-        this.orders = [];
-        this.closedPositions=[];
         this.collateral = {available:0n,locked:0n}
+
+    }
+
+    giveSnapshot(){
+       return JSON.stringify( {
+            userId:this.userId,
+            available:this.collateral.available.toString(),
+            locked:this.collateral.locked.toString(),
+            positions:this.positions
+        })
+    }
+
+    static createFromSnapshot(userSnapshotString:string){
+        const parseData = userSnapshotSchema.safeParse(JSON.parse(userSnapshotString));
+        if(!parseData.success){
+            return null;
+        }
+        const userSnapshot = parseData.data
+        const user = new User(userSnapshot.userId);
+        //add the positions
+        user.positions = userSnapshot.positions;
+        return user;
 
     }
 }

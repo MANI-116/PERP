@@ -5,11 +5,11 @@ export type EngineEvent = "ORDER_FILLED_PARTIALLY"|"ORDER_FILLED"|"ORDER_ACCEPTE
 
 export type EngineResponse =
   {
-    [K in keyof EventMap]: {
+    [K in keyof EventResponseMap]: {
       event: K;
-      payload: EventMap[K];
+      payload: EventResponseMap[K];
     };
-  }[keyof EventMap];
+  }[keyof EventResponseMap];
 
 
   export type EngineRequest = {

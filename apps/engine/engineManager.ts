@@ -1,18 +1,24 @@
-import type { EngineDeleteOrder, EngineMarket, EngineRampUser, EngineResponse, EngineUser, User } from "@repo/types";
+import type { DeleteOrderResponse, CreateMarketResponse, RampUserResponse, EngineResponse, CreateUserResponse,  } from "@repo/types";
 import { matchingEngine } from "./matchingEnigne";
-import { addUser, addMarket, orderBooks, users,markets } from "./sharedResourcesManager";
+import {  orderBooks,markets } from "./sharedResourcesManager";
 import { liquidationEngine } from "./liquidationEngine";
+import {  User} from "@repo/engine-package"
+import { UserManager,MarketManager } from "./sharedResourcesManager";
 
-function createUser(user:User):EngineUser{
-   return addUser(user)
+const userManager = UserManager.create();
+const marketManager = MarketManager.create();
+
+function createUser(user:User):CreateUserResponse{
+    const response = userManager.addUser(user);
+   return {...response,userId:user.userId};
 }
 
-function createMarket(marketId:string):EngineMarket{
-  return addMarket(marketId);
+function createMarket(marketId:string):CreateMarketResponse{
+  return marketManager.addMarket({marketId,markPrice:0n,mmr:5n,takerRate:5n,makerRate:2n,taxationScale:3n,symbol:"SOLUSDT"});
 
 }
 
-function deleteOrder(orderId:string,assetId:string):EngineDeleteOrder{
+function deleteOrder(orderId:string,assetId:string):DeleteOrderResponse{
     const orderBook = orderBooks.get(assetId);
     if(!orderBook){
         return {success:false,error:"orderbook not found", orderId};
@@ -24,47 +30,21 @@ function deleteOrder(orderId:string,assetId:string):EngineDeleteOrder{
 
 }
 
-function rampUser({userId,credit}:{userId:string,credit:bigint}):EngineRampUser{
-    const user = users.filter((u)=> u.userId === userId)[0];
-    if(!user){
-        return {message:"user not found "};
-    }
-
-    user.collateral.available += credit;
-    return { totalBalance :user.collateral.available.toString()};
+function rampUser({userId,credit}:{userId:string,credit:bigint}):RampUserResponse{
+    const response = userManager.rampUser(userId,credit);
+    return {...response};
 }
 
 
 function getEquity(userId:string){
-
-    const user = users.filter((u)=>u.userId === userId)[0];
-    if(!user) return { success:false, error:"user not found"};
-    const positions = user.positions;
-    const unrealizedPnL = positions.reduce((sum,pos)=>{
-        return sum += pos.unrealizedPnL
-    },0n);
-
-    const equity =(user.collateral.locked +user.collateral.available+unrealizedPnL).toString();
-
-    return { success:true,data:{equity}}
+    const response = userManager.getUserEquity(userId);
+    return { ...response}
 }
 
-function getOpenPositions(userId:string,marketId:string){
-
-    const user = users.filter((u)=>u.userId === userId)[0];
-    if(!user) return { success:false,error:"user not found"};
-    const positions = user.positions.filter((p)=>p.market.marketId === marketId);;
-    return {success:true,data:{positions}};
+function getOpenPositions(userId:string){
+ const response = userManager.getPositions(userId);
+ return response;
 }
-
-function getClosedPositions(userId:string,marketId:string){
-      const user = users.filter((u)=>u.userId === userId )[0];
-    if(!user) return { success:false,error:"user not found"};
-    const positions = user.closedPositions.filter((p)=>p.market.marketId === marketId);
-    return {success:true,data:{positions}};
-    
-}
-
 
 
 export function engineManager(request:any):EngineResponse|null{
@@ -101,17 +81,10 @@ export function engineManager(request:any):EngineResponse|null{
         }
 
         case "GET_OPEN_POSITIONS":{
-            const { userId, marketId} = request.payload;
-            const response = getOpenPositions(userId,marketId);
+            const { userId} = request.payload;
+            const response = getOpenPositions(userId);
             return {event:"GET_OPEN_POSITIONS",payload:response}
         }
-            break;
-        case "GET_CLOSE_POSITIONS":
-            {
-                const {userId,marketId} = request.payload;
-                const response = getClosedPositions(userId,marketId);
-                return {event:"GET_CLOSED_POSITIONS",payload:response};
-            }
             break;
         case "GET_EQUITY":{
             const response = getEquity(request.payload.userId);

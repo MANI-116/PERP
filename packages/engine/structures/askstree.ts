@@ -4,6 +4,16 @@ export class AskTree{
     constructor(){
         this.prices = [];
     }
+
+    clone(){
+        return this.prices.map((e)=>e.toString());
+    }
+
+     static create(prices:bigint[]){
+        const askTree = new AskTree();
+        prices.forEach((p)=>askTree.prices.push(p));
+        return askTree;
+    }
     getLength(){
         return this.prices.length;
     }

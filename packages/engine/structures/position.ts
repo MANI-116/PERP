@@ -1,15 +1,78 @@
-import type { Market } from "@repo/types";
+import type { Market,OrderSide,PositionState } from "@repo/types";
+import {z } from "zod"
+import type{ Id , GiveSnapshot} from "@repo/types"
 
+export const positionSnapshotSchema = z.object({
+            userId:z.string(),
+            qty:z.string().transform((p)=>BigInt(p)),
+            side:z.custom<OrderSide>(),
+            price:z.string().transform((p)=>BigInt(p)),
+            marketId:z.string(),
+            id:z.string(),
+            state:z.custom<PositionState>(),
+            initialMargin:z.string().transform((p)=>BigInt(p)),
+            avgPrice:z.string().transform((p)=>BigInt(p)),
+            
+            })
+type PositionSnapshot = z.infer<typeof positionSnapshotSchema>
 
-
-export class Position {
+export class Position implements GiveSnapshot,Id {
     public id:string;
-    public state:"CLOSED"|"OPEN"="OPEN";
+    public state:PositionState="OPEN";
     public initialMargin:bigint;
     public unrealizedPnL:bigint;
     public avgPrice:bigint;
     public liquidationPrice:bigint;
+    
+    constructor(public userId:string, public market:Market, public qty:bigint, price:bigint, public side:OrderSide,leverage:bigint){
+        this.id =`${userId+Date.now}`;
   
+        this.avgPrice = price;
+         const positionalSize = this.avgPrice * this.qty;
+        this.initialMargin = positionalSize/leverage;
+        this.unrealizedPnL =( this.market.markPrice-this.avgPrice)*this.qty;
+        let direction =  this.side ==="SHORT" ?1n:-1n;
+        this.liquidationPrice = ((this.avgPrice*this.qty)+this.initialMargin*direction)/(this.qty * (1000n-this.market.mmr));
+
+        
+    }
+
+
+
+    giveSnapshot(){
+        //things need to create the state
+        //userId,marketId,qty,side,id,state,initialMargin,avgPrice
+        const snapshot = { userId:this.userId,
+             marketId:this.market.marketId,
+             qty:this.qty.toString(),
+             side:this.side,
+             id:this.id,
+             state:this.state,
+             initialMargin:this.initialMargin.toString(),
+             avgPrice:this.avgPrice.toString()
+            }
+
+        return JSON.stringify(snapshot)
+    }
+
+    static createFromSnapshot(positionSnapshotstring:string,market:Market):Position|null{
+
+        const parseData = positionSnapshotSchema.safeParse(JSON.parse(positionSnapshotstring));
+        if(!parseData.success) return null;
+        const positionSnapshot = parseData.data;
+
+        const { userId,qty,price,side,initialMargin,state,id,avgPrice} = positionSnapshot;
+
+        const position = new Position(userId,market,qty,price,side,1n);
+        position.initialMargin = initialMargin;
+        position.id = id;
+        position.state=state;
+        position.avgPrice=avgPrice;
+        position.setLiquidationPrice();
+        position.setUnrealizedPnL();
+        return position;
+
+    }
 
     
      setInitialMargin(){
@@ -32,18 +95,6 @@ export class Position {
      setLeverage(leverage:bigint){
 
      }
-    constructor(public userId:string, public market:Market, public qty:bigint, price:bigint, public side:"LONG"|"SHORT",leverage:bigint){
-        this.id =`${userId+Date.now}`;
-  
-        this.avgPrice = price;
-         const positionalSize = this.avgPrice * this.qty;
-        this.initialMargin = positionalSize/leverage;
-        this.unrealizedPnL =( this.market.markPrice-this.avgPrice)*this.qty;
-        let direction =  this.side ==="SHORT" ?1n:-1n;
-        this.liquidationPrice = ((this.avgPrice*this.qty)+this.initialMargin*direction)/(this.qty * (1000n-this.market.mmr));
-
-        
-    }
 
     setNewAvgPrice(price:bigint,qty:bigint){
         this.avgPrice =( (this.avgPrice * this.qty)+(price*qty))/(this.qty+qty)
