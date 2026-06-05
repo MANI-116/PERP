@@ -15,10 +15,10 @@ interface PositionIdentifier{
     marketId:string}
 export class User {
     public collateral:{available:bigint,locked:bigint};
-    public positions:PositionIdentifier[];
+    public positions:Map<string,string>;
     
     constructor(public userId:string){
-        this.positions = [];
+        this.positions = new Map<string,string>();
         this.collateral = {available:0n,locked:0n}
 
     }
@@ -40,7 +40,12 @@ export class User {
         const userSnapshot = parseData.data
         const user = new User(userSnapshot.userId);
         //add the positions
-        user.positions = userSnapshot.positions;
+        const map = new Map<string,string>();
+        userSnapshot.positions.forEach((pos)=>{
+            map.set(pos.marketId,pos.id);
+        })
+    
+        user.positions = map;
         return user;
 
     }

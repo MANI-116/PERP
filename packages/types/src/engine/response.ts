@@ -1,5 +1,5 @@
 import { Position } from "@repo/engine-package"
-import type { TransmitOrder } from "../domain/order";
+import type { OrderSide, TransmitOrder } from "../domain/order";
 
 
 export interface CreateUserResponse{
@@ -22,12 +22,13 @@ export interface DeleteOrderResponse{
 }
 
 export interface MatchOrder{
+    price:bigint,
     orderId:string,
     userId:string,
-    tax:string,
-    qtyTransfered:string,
+    qtyTransfered:bigint,
     timestamp:string,
-    availbleBalance:string
+    leverage:bigint,
+    side:OrderSide
 }
 export interface OrderFilledResponse extends TransmitOrder{
     availbleBalance:string,

@@ -1,4 +1,6 @@
-import { User, Order, type Market, OrderBook, type EngineResponse,type MatchOrder} from "@repo/types"
+import { type Market, type EngineResponse,type MatchOrder} from "@repo/types"
+import { OrderBook,User,Order} from "@repo/engine-package"
+
 import { transact } from "./common";
 export  function matchOrder(user:User,order:Order,market:Market,orderBooks:Map<string,OrderBook>,users:User[]):EngineResponse{
     const { qty,leverage,price,side,status,filled,userId} = order;
@@ -44,9 +46,7 @@ export  function matchOrder(user:User,order:Order,market:Market,orderBooks:Map<s
     //this will consume the availble qty in the market at that level
     let takerTax = 0n;
     const matchedOrders:MatchOrder[]=[];
-    let takerUpdates:string[][] = [[]];
-    let makerUpdates:string[][] = [[]];
-
+  
     for(let index = 0; index < ordersLength;index++){
         const requiredQty = order.qty - order.filled;
         const matchedOrder = opSidelevelData.list.getFirstOrder().value;

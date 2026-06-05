@@ -15,6 +15,16 @@
             "stopOnEntry": false,
             "watchMode": false
         },
+         {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "scenario-1",
+            "program": "${workspaceFolder}/apps/tests/scenarios/scenario-01-limit-accepted.ts",
+            "cwd": "${workspaceFolder}/apps/tests/scenarios",
+            "stopOnEntry": true,
+            "watchMode": false
+        },
         {
             "type": "bun",
             "internalConsoleOptions": "neverOpen",
@@ -32,6 +42,136 @@
             "name": "Attach Bun",
             "url": "ws://localhost:6499/",
             "stopOnEntry": false
-        }
+        },
+        {
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 02 - Reject Order - Insufficient Margin",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-02-insufficient-margin.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 03 - Full Fill - Single Counterparty",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-03-full-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 04 - Partial Fill - Rest Remaining On Book",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-04-partial-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 05 - FIFO - Multiple Orders Same Price",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-05-fifo-full-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 06 - FIFO Partial Fill - Queue Preservation",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-06-fifo-partial-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 07 - Multi Level Match - Best Price Priority",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-07-multi-level-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 08 - No Match - Orders Rest On Book",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-08-no-crossing.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 09 - Position Increase - Same Direction",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-09-position-increase.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 10 - Position Reduce - Opposite Trade",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-10-position-reduce.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 11 - Position Flip - Long To Short",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-11-position-flip.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 12 - Market Order - Empty Book Rejection",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-12-market-empty-book.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 13 - Market Order - Single Fill",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-13-market-single-fill.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+},
+{
+    "type": "bun",
+    "internalConsoleOptions": "neverOpen",
+    "request": "launch",
+    "name": "Scenario 14 - Market Order - Multi Level Sweep",
+    "program": "${workspaceFolder}/apps/tests/scenarios/scenario-14-market-multi-level-sweep.ts",
+    "cwd": "${workspaceFolder}/apps/tests/scenarios",
+    "stopOnEntry": true,
+    "watchMode": false
+}
     ]
 }

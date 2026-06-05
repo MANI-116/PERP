@@ -1,12 +1,10 @@
 import type { DeleteOrderResponse, CreateMarketResponse, RampUserResponse, EngineResponse, CreateUserResponse,  } from "@repo/types";
-import { matchingEngine } from "./matchingEnigne";
-import {  orderBooks,markets } from "./sharedResourcesManager";
 import { liquidationEngine } from "./liquidationEngine";
-import {  User} from "@repo/engine-package"
-import { UserManager,MarketManager } from "./sharedResourcesManager";
+import {  MarketManager, User, UserManager, Engine} from "@repo/engine-package"
 
 const userManager = UserManager.create();
 const marketManager = MarketManager.create();
+const engine = Engine.create();
 
 function createUser(user:User):CreateUserResponse{
     const response = userManager.addUser(user);
@@ -19,13 +17,12 @@ function createMarket(marketId:string):CreateMarketResponse{
 }
 
 function deleteOrder(orderId:string,assetId:string):DeleteOrderResponse{
-    const orderBook = orderBooks.get(assetId);
-    if(!orderBook){
+ 
+    const market = marketManager.getMarket(assetId);
+     if(!market){
         return {success:false,error:"orderbook not found", orderId};
     }
-
-
-    const response = orderBook.deleteOrder(orderId);
+    const response = market.orderbook.deleteOrder(orderId);
     return { ...response, orderId};
 
 }
@@ -56,7 +53,7 @@ export function engineManager(request:any):EngineResponse|null{
         case "CREATE_ORDER":{
             console.log("create order is invoked");
           const payload = { ...request.payload, price:BigInt(request.payload.price),qty:BigInt(request.payload.qty),leverage:BigInt(request.payload.leverage)}        
-          return  matchingEngine(payload)
+          return engine.placeOrder(payload)
         }
         case "CREATE_USER":{
             const {userId} = request.payload;
@@ -92,7 +89,7 @@ export function engineManager(request:any):EngineResponse|null{
         }
         case "UPDATE_MARKPRICE":{
             const { symbol,markPrice } =request.payload;
-            const market = markets.filter((m)=>m.symbol === symbol)[0];
+            const market = marketManager.getMarket(symbol);
             if(market){ 
                 console.log("starting liquidation engine-",symbol);
                 liquidationEngine({marketId:market.marketId,markPrice});
@@ -114,16 +111,16 @@ export function engineManager(request:any):EngineResponse|null{
 
 function getDepth(marketId:string){
 
-    const orderBook = orderBooks.get(marketId);
-    if(!orderBook){
+    const market = marketManager.getMarket(marketId);
+    if(!market){
         return { success:false,error:"no orderbook found"};
     }
 
-    const bids = [...orderBook.bids.entries()].sort((a,b)=>{if(a[0]<b[0]){return -1}else if(a[0] > b[0]){ return 1} return 0;}).map((e)=>{
+    const bids = [...market.orderbook.bids.entries()].sort((a,b)=>{if(a[0]<b[0]){return -1}else if(a[0] > b[0]){ return 1} return 0;}).map((e)=>{
         return [e[0].toString(),e[1].totalQty.toString()]
     });
 
-    const asks = [...orderBook.asks.entries()].sort((a,b)=>{if(a[0]<b[0]){return -1}else if(a[0] > b[0]){ return 1} return 0;}).map((e)=>{
+    const asks = [...market.orderbook.asks.entries()].sort((a,b)=>{if(a[0]<b[0]){return -1}else if(a[0] > b[0]){ return 1} return 0;}).map((e)=>{
         return [e[0].toString(),e[1].totalQty.toString()]
     })
 

@@ -1,8 +1,8 @@
 
-export interface Market{
+export interface IMarket{
     symbol:string,
-    markPrice:bigint,
     marketId:string,
+    markPrice:bigint,
     mmr:bigint,
     takerRate:bigint,
     makerRate:bigint,

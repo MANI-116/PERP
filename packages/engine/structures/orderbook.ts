@@ -1,7 +1,7 @@
 import  { AskTree } from "./askstree";
 import  { BidTree } from "./bidstree";
 import  { Dll, Node } from "./dll";
-import type { Id, Market, Qty } from "@repo/types";
+import type { Id, IMarket, MatchOrder, Qty } from "@repo/types";
 
 import  { Order } from "./order";
 import  { PriceLevelObject } from "./priceLevelData";
@@ -14,7 +14,7 @@ interface GiveSnapshot{
     giveSnapshot():string
 }
 
-type SnapshotFactory<T> = (valueSnapshotStr: string,market:Market) => T | null;
+type SnapshotFactory<T> = (valueSnapshotStr: string,market:IMarket) => T | null;
 
 
 const orderSnapshotSchema = z.object({
@@ -24,41 +24,27 @@ const orderSnapshotSchema = z.object({
     bids:z.array(z.object({price:z.string().transform((p)=>BigInt(p)),
         levelDataSnapshotString:z.string()
     })),
-    shorts:z.array(z.object({price:z.string().transform((p)=>BigInt(p)),
-        levelDataSnapshotString:z.string()
-    })),
-    longs:z.array(z.object({price:z.string().transform((p)=>BigInt(p)),
-        levelDataSnapshotString:z.string()
-    })),
     askTree:z.array(z.string().transform((p)=>BigInt(p))),
     bidTree:z.array(z.string().transform((p)=>BigInt(p))),
-    shortsTree:z.array(z.string().transform((p)=>BigInt(p))),
-    longsTree:z.array(z.string().transform((p)=>BigInt(p))),
-    assetId:z.string()})
+    })
 
 export class OrderBook{
     public asks:Map<bigint,PriceLevelObject<Order>>;
     public bids:Map<bigint,PriceLevelObject<Order>>;
     public askTree:AskTree;
     public bidTree:BidTree;
-    public longsTree:BidTree;
-    public shortsTree:AskTree;
+  
     private ordersRef:Map<string,Node<Order>>
-    public longs:Map<bigint,PriceLevelObject<Position>>
-    public shorts:Map<bigint,PriceLevelObject<Position>>
-    public positionsRef:Map<string,Node<Position>>
-    constructor(private readonly assetId:string){
+   
+    constructor(){
         this.asks = new Map<bigint,PriceLevelObject<Order>>();
         this.bids = new Map<bigint,PriceLevelObject<Order>>();
         this.askTree  = new AskTree();
-        this.bidTree = new BidTree();
-        this.longsTree = new BidTree();
-        this.shortsTree = new AskTree();
+        this.bidTree = new BidTree();   
         this.ordersRef = new Map<string,Node<Order>>();
-        this.longs = new Map<bigint,PriceLevelObject<Position>>();
-        this.shorts = new Map<bigint,PriceLevelObject<Position>>();
-        this.positionsRef = new Map<string,Node<Position>>();
+      
     }
+    
 
     giveSnapshot(){
     
@@ -75,41 +61,22 @@ export class OrderBook{
             const entry = {price:price.toString(),levelSnapshotString:priceLevelData.giveSnapshot()};
             bids.push(entry);
         }
-        const longsTree = this.longsTree.clone();
-        const shortsTree = this.shortsTree.clone();
-
+    
         
-         let longs:{price:string,levelSnapshotString:string}[]=[];
-        for(const [price,priceLevelData] of this.longs.entries() ){
-            const entry = {price:price.toString(),levelSnapshotString:priceLevelData.giveSnapshot()};
-            longs.push(entry);
-        }
-        
-         let shorts:{price:string,levelSnapshotString:string}[]=[];
-        for(const [price,priceLevelData] of this.shorts.entries() ){
-            const entry = {price:price.toString(),levelSnapshotString:priceLevelData.giveSnapshot()};
-            shorts.push(entry);
-        }
          let ordersRef:{orderId:string,orderSnapshot:string}[]=[];
         for(const [orderId,orderNode] of this.ordersRef.entries() ){
             const entry = {orderId:orderId,orderSnapshot:orderNode.giveSnapshot().valueSnapshot};
             ordersRef.push(entry);
         }
 
-        let positionsRef:{lp:string,positionSnapshot:string}[]=[];
-        for(const [lp,position] of this.positionsRef.entries() ){
-            const entry = {lp:lp.toString(),positionSnapshot:position.giveSnapshot().valueSnapshot};
-            positionsRef.push(entry);
-        }
-
-        return {orderSnapshotString:JSON.stringify({asks,bids,shorts,longs,askTree,bidTree,shortsTree,longsTree,assetId:this.assetId})};
+        return {orderSnapshotString:JSON.stringify({asks,bids,askTree,bidTree})};
 
     }
 
     static createLevelMap<T extends Qty & GiveSnapshot & Id>(
         priceLevel: {price: bigint;levelDataSnapshotString: string;},
         priceLevelMap:Map<bigint,PriceLevelObject<T>>,
-        market:Market,
+        market:IMarket,
         createFromSnapshot: SnapshotFactory<T>,
         ref:Map<string,Node<T>>
      ){
@@ -153,7 +120,7 @@ export class OrderBook{
 
     }
 
-    static createFromSnapshot(orderSnapshotString:string,market:Market){
+    static createFromSnapshot(orderSnapshotString:string,market:IMarket){
         const parseData = orderSnapshotSchema.safeParse(JSON.parse(orderSnapshotString));
         if(!parseData.success){
             return null;
@@ -163,36 +130,23 @@ export class OrderBook{
 
         //create the new order book;
         //create new asks tree,bids tree , shorts tree , longs tree
-        const assetId = orderbookSnapshot.assetId;
         const askTree = AskTree.create(orderbookSnapshot.askTree);
-        const shortsTree = AskTree.create(orderbookSnapshot.shortsTree);
         const bidTree = BidTree.create(orderbookSnapshot.bidTree);
-        const longsTree = BidTree.create(orderbookSnapshot.longsTree);
+       
 
         const ordersRef = new Map<string,Node<Order>>();
         const positionsRef = new Map<string,Node<Position>>();
         const asks = new Map<bigint,PriceLevelObject<Order>>()
-         orderbookSnapshot.asks.forEach((ask)=> OrderBook.createLevelMap<Order>(ask,asks,market,Order.createFromSnapshot,ordersRef))
+         orderbookSnapshot.asks.forEach((ask)=> this.createLevelMap<Order>(ask,asks,market,Order.createFromSnapshot,ordersRef))
         const bids = new Map<bigint,PriceLevelObject<Order>>()
          orderbookSnapshot.bids.forEach((bid)=>OrderBook.createLevelMap<Order>(bid,bids,market,Order.createFromSnapshot,ordersRef))
-        const shorts = new Map<bigint,PriceLevelObject<Position>>()
-         orderbookSnapshot.shorts.forEach((short)=>OrderBook.createLevelMap<Position>(short,shorts,market,Position.createFromSnapshot,positionsRef))
-        const longs = new Map<bigint,PriceLevelObject<Position>>()
-         orderbookSnapshot.longs.forEach((long)=>OrderBook.createLevelMap<Position>(long,longs,market,Position.createFromSnapshot,positionsRef)) 
 
-         const orderbook = new OrderBook(assetId);
+         const orderbook = new OrderBook();
          orderbook.asks = asks;
          orderbook.bids = bids;
          orderbook.askTree = askTree;
          orderbook.bidTree = bidTree;
-         
-         orderbook.shorts = shorts;
-         orderbook.longs = longs;
-         orderbook.shortsTree= shortsTree;
-         orderbook.longsTree = longsTree;
-         orderbook.ordersRef = ordersRef;
-         orderbook.positionsRef=positionsRef;
-
+        
 
     return orderbook;
     }
@@ -213,12 +167,7 @@ export class OrderBook{
         return {success:true, updates}
         
     }
-    addShortLiquidationPrice(price:bigint){
-       return  this.shortsTree.addPrice(price);
-    }
-    addLongLiquidationPrice(price:bigint){
-       return  this.longsTree.addPrice(price);
-    }
+  
     addAskOrder(order:Order){
         const price = order.price
         //wether level is present or not 
@@ -311,107 +260,252 @@ export class OrderBook{
         return { success:"true",message:"removed order"}
 
     }
+    matchOrder(order:Order){
+    const { qty,price } = order;
 
-    addLong(position:Position){
-        const liquidationPrice = position.liquidationPrice;
+    const matchedOrders:MatchOrder[]=[];
+    //get the pricelevel for asks
+    let opSidelevelData= order.side === "LONG"?this.asks.get(order.price):this.bids.get(order.price);
+    if(opSidelevelData === undefined){
+        //no opposite price level present for the asset ,so put order in  this
+        order.side === "LONG"?this.addBidOrder(order):this.addAskOrder(order);
+        let updates={
+            bids:order.side === "LONG"?[[price.toString(),qty.toString()]]:[[]],
+            asks:order.side === "SHORT"?[[price.toString(),qty.toString()]]:[[]]
 
-        //if we have the pricelevel 
-        let levelData = this.longs.get(liquidationPrice);
-        let positionRef:Node<Position>
-        if(levelData === undefined){
-        //-->  create the the pricelevel and add postion and add level to the longsTree
-            levelData = PriceLevelObject.createFromOrder<Position>(position);
-            this.longs.set(liquidationPrice,levelData);
-            positionRef = levelData.list.getFirstOrder();
-            this.longsTree.addPrice(liquidationPrice);
-
-        }else{
-            //-->then added it to the list add postion reference to positionrefmap 
-            positionRef = new Node<Position>(position)
-            levelData.list.addNode(positionRef);
-            
         }
-        //add the reference to the map
-        this.positionsRef.set(positionRef.value.id,positionRef);
-        return { message:"added successfully"};
-
+        return {
+            event:"ORDER_ACCEPTED",
+            payload:{
+                filled:order.filled,
+                updates,
+                matchedOrders
+                
+            }};
     }
-
-    addShort(position:Position){
-        const liquidationPrice = position.liquidationPrice;
-
-        //if we have the pricelevel 
-        let levelData = this.shorts.get(liquidationPrice);
-        let positionRef:Node<Position>
-        if(levelData === undefined){
-        //-->  create the the pricelevel and add postion and add level to the longsTree
-            levelData =  PriceLevelObject.createFromOrder<Position>(position);
-            this.shorts.set(liquidationPrice,levelData);
-            positionRef = levelData.list.getFirstOrder();
-            this.shortsTree.addPrice(liquidationPrice);
-
+    
+    //if level avialable ---> we can match the order and execute the order --->add to position or open new position
+    const ordersLength = opSidelevelData.list.length;
+  
+    for(let index = 0; index < ordersLength;index++){
+        const requiredQty = order.qty - order.filled;
+        const matchedOrder = opSidelevelData.list.getFirstOrder().value;
+        const availablleQty = matchedOrder.qty- matchedOrder.filled;
+   
+        if(requiredQty <= availablleQty){
+          matchedOrder.filled += requiredQty;
+          order.filled += requiredQty;
         }else{
-            //-->then added it to the list add postion reference to positionrefmap 
-            positionRef = new Node<Position>(position)
-            levelData.list.addNode(positionRef);
+         matchedOrder.filled += availablleQty;
+         order.filled += availablleQty;
+        }
+        matchedOrders.push({
+            userId:matchedOrder.userId,
+            price:matchedOrder.price,
+            leverage:matchedOrder.leverage,
+            orderId:matchedOrder.orderId,
+            qtyTransfered:matchedOrder.filled,
+            side:matchedOrder.side,
+            timestamp:Date.now().toString()})
+        if(matchedOrder.filled === matchedOrder.qty ){
+            //order is filled completely so the order is removed from the pricelevel
+            matchedOrder.side === "SHORT"?this.removeAskOrder(matchedOrder):this.removeBuyOrder(matchedOrder);
+        }
+        if(order.filled === order.qty){
+
+            //changes happend in the oppist side
+            let updates={
+            bids:matchedOrder.side === "LONG"?[[price.toString(),opSidelevelData.totalQty.toString()]]:[[]],
+            asks:matchedOrder.side=== "SHORT"?[[price.toString(),opSidelevelData.totalQty.toString()]]:[[]]
+
+        }
             
-        }
-        //add the reference to the map
-        this.positionsRef.set(positionRef.value.id,positionRef);
-        return { message:"added successfully"};
+            return { event:"ORDER_FILLED",
+                    payload:{
+                        filled:order.filled,
+                        matchedOrders,
+                        updates
+                    },
 
-    }
-
-    removeShort(position:Position ,lp?:bigint){
-        //get the level
-        // ******** lp is for the postions which transitioned from the short to long
-        //single order remove level,remove ref and remove treePrice check wether positon is long or short
-        const level = lp? this.shorts.get(lp): this.shorts.get(position.liquidationPrice);
-        if(level === undefined){ return { success:false, message:"position doesnot exist"}};
-        //get the reference of the position
-        const posRef = this.positionsRef.get(position.id);
-        if(posRef === undefined){
-            return { success:false, message:"no position found"}
+                    }
         }
-        const response = level.list.removeNode(posRef);
-        if(!response.success){
-            //single order ,need to remove the whole level and levelprice in the shorts tree
-            console.log("removing level and the pprice in tree")
-            this.shorts.delete(position.liquidationPrice);
-            this.shortsTree.removePrice(position.liquidationPrice);
-            this.positionsRef.delete(position.id);
-            return {success:true,message:"position removed succesfully"}
-        }
-        this.positionsRef.delete(position.id);
-        return { success:true, message:"removed the postion"}
         
 
     }
 
-    removeLong(position:Position,lp?:bigint){
-        //get the level
-        //single order remove level,remove ref and remove treePrice
-        const level =lp?this.longs.get(lp): this.longs.get(position.liquidationPrice);
-        if(level === undefined){ return { success:false, message:"position doesnot exist"}};
-        //get the reference of the position
-        const posRef = this.positionsRef.get(position.id);
-        if(posRef === undefined){
-            return { success:false, message:"no position found"}
-        }
-        const response = level.list.removeNode(posRef);
-        if(!response.success){
-            //single order ,need to remove the whole level and levelprice in the longs tree
-            console.log("removing level and the pprice in tree")
-            this.longs.delete(position.liquidationPrice);
-            this.longsTree.removePrice(position.liquidationPrice);
-            this.positionsRef.delete(position.id);
-            return {success:true,message:"position removed succesfully"}
-        }
-        this.positionsRef.delete(position.id);
-        return { success:true, message:"removed the postion"}
+    if(order.filled != order.qty){
+        //place in the order book:
+        order.side === "LONG"?this.addBidOrder(order):this.addAskOrder(order);
 
     }
 
-    
+    //now we have maker updates and taker updates-->is it really, we matched opside sum executed--> opside level become 0 and order qty raise in taker account
+    //asks and bids for updates
+    //taker -> asks and bids[[price,qty]]
+    //maker -> asks and bids [[price,0]]
+    let bids:string[][]=[];
+    let asks:string[][]=[];
+    if(order.side === "SHORT"){
+        //taker have some ask qty:
+        const leveldata = this.asks.get(order.price)!;
+        const qty = leveldata.totalQty.toString();
+        asks.push([price.toString(),qty]);
+        bids.push([price.toString(),opSidelevelData.totalQty.toString()]);
+
+    }else{
+        
+        const leveldata = this.bids.get(order.price)!;
+        const qty = leveldata.totalQty.toString();
+        bids.push([price.toString(),qty]);
+        asks.push([price.toString(),opSidelevelData.totalQty.toString()]);
+
+    }
+    return { event:"ORDER_FILLED_PARTIALLY",
+        payload:{
+            filled:order.filled,
+            updates:{
+                asks,
+                bids
+            },
+            matchedOrders}};
+    }
+    matchMarketOrder(order:Order){
+        const { qty,price,side,status,userId} = order;
+      
+        let totalLevels = order.side === "SHORT"?this.askTree.getLength():this.bidTree.getLength()
+        const matchedOrders:MatchOrder[]=[];
+        let takertax = 0n;
+        let bids:string[][]=[];
+        let asks:string[][]=[];
+        for(let i =0; i< totalLevels;i++ ){
+            //get the pricelevel from opposite side
+            const level = order.side === "SHORT"?this.bidTree.getTop():this.askTree.getMinAsk();
+            if(level === undefined){
+                return {
+                     event:"ORDER_REJECTED",
+                     payload:{
+                        matchedOrders,
+                        type:order.type,
+                            qty:qty,
+                            price:price,
+                            state:status,
+                            userId,filled:order.filled,
+                            side ,
+                            marketId:order.assetId,
+                            error:"no counter offers",
+                            orderId:order.orderId,
+                            timestamp:Date.now().toString()}}
+            }
+            let opSidelevelData= order.side === "LONG"?this.asks.get(level):this.bids.get(level);
+            if(opSidelevelData === undefined){
+                //no opposite price level present for the asset ,so reject he market Order
+                order.side === "LONG"?this.addBidOrder(order):this.addAskOrder(order);
+                return {
+                    event:"ORDER_REJECTED",
+                    payload:{
+                        matchedOrders,
+                        type:order.type,
+                        qty:qty,
+                        price:price,
+                        state:status,
+                        userId,filled:order.filled,
+                        side ,
+                        marketId:order.assetId,
+                        orderId:order.orderId,
+                        error:"no opposit orders",
+                        timestamp:Date.now().toString()}};
+            }
+            
+            //ask level avialable ---> we can match the order and execute the order --->add to position or open new position
+            const ordersLength = opSidelevelData.list.length;
+         
+            for(let index = 0; index < ordersLength;index++){
+
+                const requiredQty = order.qty - order.filled;
+                const matchedOrder = opSidelevelData.list.getFirstOrder().value;
+                const availablleQty = matchedOrder.qty- matchedOrder.filled;
+                
+                //executing the order
+                if(requiredQty <= availablleQty){
+                    matchedOrder.filled += requiredQty;
+                    order.filled +=requiredQty;
+
+                }else{
+                   matchedOrder.filled += availablleQty;
+                   order.filled += availablleQty;
+                }
+                
+                 matchedOrders.push({
+                    price:matchedOrder.price,
+                    leverage:matchedOrder.leverage,
+                    side:matchedOrder.side,
+                    userId:matchedOrder.userId,
+                    orderId:matchedOrder.orderId,
+                    qtyTransfered:matchedOrder.filled,
+                    timestamp:Date.now().toString()})
+  
+                if(matchedOrder.filled === matchedOrder.qty ){
+                    //order is filled completely so the order is removed from the pricelevel
+                    matchedOrder.side === "SHORT"?this.removeAskOrder(matchedOrder):this.removeBuyOrder(matchedOrder);
+                }
+                if(order.filled === order.qty){
+                        let updates={
+                                        bids:matchedOrder.side === "LONG"?[[price.toString(),opSidelevelData.totalQty.toString()]]:[[]],
+                                        asks:matchedOrder.side=== "SHORT"?[[price.toString(),opSidelevelData.totalQty.toString()]]:[[]]
+                                    }
+                    return { 
+                        event:"ORDER_FILLED" ,
+                         payload:{
+                            tax:takertax,
+                            type:order.type,
+                            qty:qty,
+                            state:"FILLED",
+                            userId,
+                            side ,
+                            marketId:order.assetId,
+                            orderId:order.orderId,
+                            filled:order.qty,
+                            price:order.price,
+                            matchedOrders,
+                            updates}}
+                }
+            
+        }
+          if(order.side === "SHORT"){
+        bids.push([price.toString(),opSidelevelData.totalQty.toString()]);
+
+    }else{
+        asks.push([price.toString(),opSidelevelData.totalQty.toString()]);
+
+    }
+    }
+        return {
+             event:"ORDER_FILLED_PARTIALLY",
+              payload:{
+                tax:takertax,
+                type:order.type,
+                qty:qty,
+                state:"FILLED",
+                userId,
+                side ,
+                marketId:order.assetId,             
+                orderId:order.orderId,
+                filled:order.qty,
+                price:order.price,
+                matchedOrders,
+                updates:{
+                    asks,bids
+                }
+            }}
+
+   }
+
 
 }
+
+
+ 
+
+    
+
+

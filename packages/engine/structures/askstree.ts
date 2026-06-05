@@ -31,7 +31,7 @@ export class AskTree{
             }
         }
 
-        const middle = start + (end-start)/2;
+        const middle = Math.floor(start + (end-start)/2);
 
         if(price < this.prices[middle]!){
             return this.findPosition(price,middle+1,end);
@@ -66,7 +66,7 @@ export class AskTree{
         if(index === -1 ){
             //insert at start
             this.prices.push(price);
-            const res = this.shift(0,this.prices.length-1);
+            const res = this.shift(0,this.prices.length-2);
              if(!res.success){ 
             console.log("error while shifting--", res.message)
             return false;
