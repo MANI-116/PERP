@@ -87,7 +87,7 @@ describe("BidTree", () => {
         const snapshot = tree.clone();
 
         const recovered =
-            BidTree.create(snapshot);
+            BidTree.create(snapshot.map((e)=>BigInt(e)));
 
         expect(
             recovered.getLength()
@@ -109,7 +109,7 @@ describe("BidTree", () => {
         const snapshot1 = tree.clone();
 
         const recovered =
-            BidTree.create(snapshot1);
+            BidTree.create(snapshot1.map((e)=>BigInt(e)));
 
         const snapshot2 =
             recovered.clone();
@@ -128,7 +128,7 @@ describe("BidTree", () => {
         const snapshot = tree.clone();
 
         const recovered =
-            BidTree.create(snapshot);
+            BidTree.create(snapshot.map((e)=>BigInt(e)));
 
         expect(
             recovered.getLength()

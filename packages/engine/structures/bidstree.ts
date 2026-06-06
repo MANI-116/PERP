@@ -5,7 +5,7 @@ export class BidTree{
         this.prices = [];
     }
     clone(){
-        return this.prices.map((e)=>e);
+        return this.prices.map((e)=>e.toString());
     }
 
     static create(prices:bigint[]){

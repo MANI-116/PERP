@@ -66,6 +66,19 @@
             "stopOnEntry": false,
             "watchMode": false
         },
+         {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "position testing",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/position.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+    
         {
             "type": "bun",
             "internalConsoleOptions": "neverOpen",
@@ -82,7 +95,7 @@
             "type": "bun",
             "internalConsoleOptions": "neverOpen",
             "request": "launch",
-            "name": "bidTree",
+            "name": "bidTree testing",
             "runtime": "bun",
              "runtimeArgs": ["test"],
             "program": "${workspaceFolder}/apps/tests/snapshot_recovery/bidTree.ts",

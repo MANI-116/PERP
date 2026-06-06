@@ -112,22 +112,22 @@ export class OrderBook{
     return orderbook;
     }
 
-    deleteOrder(orderId:string){
-        const node =  this.ordersRef.get(orderId);
-        if(!node) return { success:false,error:"did not find the reference"};
-        const order = node.value;
-        const side = order.side;
-        const priceLevel = order.price;
-        const levelData = side === "SHORT" ? this.asks.get(priceLevel)!:this.bids.get(priceLevel)!;
-        levelData.removeNode(node);
-         let updates={
-            bids:order.side === "LONG"?[[order.price.toString(),levelData.totalQty.toString()]]:[[]],
-            asks:order.side === "SHORT"?[[order.price.toString(),levelData.totalQty.toString()]]:[[]]
+    // deleteOrder(orderId:string){
+    //     const node =  this.ordersRef.get(orderId);
+    //     if(!node) return { success:false,error:"did not find the reference"};
+    //     const order = node.value;
+    //     const side = order.side;
+    //     const priceLevel = order.price;
+    //     const levelData = side === "SHORT" ? this.asks.get(priceLevel)!:this.bids.get(priceLevel)!;
+    //     levelData.removeNode(node);
+    //      let updates={
+    //         bids:order.side === "LONG"?[[order.price.toString(),levelData.totalQty.toString()]]:[[]],
+    //         asks:order.side === "SHORT"?[[order.price.toString(),levelData.totalQty.toString()]]:[[]]
 
-        }
-        return {success:true, updates}
+    //     }
+    //     return {success:true, updates}
         
-    }
+    // }
   
     addAskOrder(order:Order){
         const price = order.price
@@ -167,7 +167,7 @@ export class OrderBook{
         }else{
 
         const node = new Node<Order>(order);
-        levelData?.addNode(node);
+        levelData.addNode(node);
         this.ordersRef.set(order.orderId,node);
         return;        
     }
@@ -183,7 +183,7 @@ export class OrderBook{
             return { succes:true,message:"price level not found"};
 
         }
-        const levelList = priceLevelData.list;
+    
         let orderNode = this.ordersRef.get(order.orderId);
         if(orderNode === undefined){ return {success:true,message:"order not found"}}
         const response = priceLevelData.removeNode(orderNode);
@@ -207,7 +207,7 @@ export class OrderBook{
             return { succes:true,message:"price level not found"};
 
         }
-        const levelList = priceLevelData.list;
+    
         let orderNode = this.ordersRef.get(order.orderId);
         if(orderNode === undefined){ return {success:true,message:"order not found"}}
         const response = priceLevelData.removeNode(orderNode);
