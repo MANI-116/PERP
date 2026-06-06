@@ -43,6 +43,30 @@
             "url": "ws://localhost:6499/",
             "stopOnEntry": false
         },
+        
+        {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "order snapshot and recovery",
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/order.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+           {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "dll snapshot and recovery",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/dll.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+        
         {
     "type": "bun",
     "internalConsoleOptions": "neverOpen",

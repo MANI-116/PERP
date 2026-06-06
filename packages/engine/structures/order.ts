@@ -1,4 +1,4 @@
-import type { Market, OrderSide, OrderStatus,OrderType } from "@repo/types";
+import type { IMarket, OrderSide, OrderStatus,OrderType } from "@repo/types";
 import { z } from "zod";
 import type {Id,GiveSnapshot} from "@repo/types"
 
@@ -24,15 +24,13 @@ export class Order implements GiveSnapshot,Id{
     public status:OrderStatus = "OPEN";
     public id:string;
     constructor(public orderId:string,public userId:string,public assetId:string, public qty:bigint, public side:OrderSide , public price:bigint, public leverage:bigint,public type:OrderType){
-        console.log("orderId-",this.orderId)
         this.id = orderId;
         if(this.orderId === "" || this.orderId === undefined) throw new Error("orderId is needed")
         this.initialMargin =(this.qty*this.price)/this.leverage 
         this.maintenanceMargin = (this.qty * this.price*5n)/1000n;
     }
     giveSnapshot(){
-        return JSON.stringify({orderSnapshotString:JSON.stringify({
-
+        return JSON.stringify(JSON.stringify({
             orderId:this.orderId,
             userId:this.userId,
             assetId:this.assetId,
@@ -45,10 +43,10 @@ export class Order implements GiveSnapshot,Id{
             filled:this.filled.toString(),
             initialMargin:this.initialMargin.toString(),
             maintenanceMargin:this.maintenanceMargin.toString()
-        })})
+        }))
 
     }
-    static createFromSnapshot(orderSnapshotString:string,market?:Market):Order|null{
+    static createFromSnapshot(orderSnapshotString:string):Order|null{
 
         const parseData  = orderSnapshotSchema.safeParse(JSON.parse(orderSnapshotString));
         if(!parseData.success){

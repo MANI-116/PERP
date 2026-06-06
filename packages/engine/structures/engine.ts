@@ -4,7 +4,7 @@ import { MarketManager } from "./marketManager";
 import type { CreateOrderRequest, EngineResponse, MatchOrder, OrderAcceptedResponse, OrderFilledPartiallyResponse,OrderRejectedResponse,OrderFilledResponse } from "@repo/types";
 import type { Market } from "./market";
 import { Order } from "./order";
-
+import { rejectOrderResponse, acceptOrderResponse } from "../lib/placeOrderResponses";
 type createOrderResponse = OrderAcceptedResponse | OrderFilledPartiallyResponse | OrderFilledResponse | OrderRejectedResponse
 
 
@@ -80,16 +80,19 @@ export class Engine{
                     if(response.error === "user not found"){
                         throw new Error('user not found');
                     }
-                    //create new position and need deduct the initial margin from the user plus transaction charge(maker)
-                    const {positionId,initialMargin} = market.createPosition(makerOrder.userId,makerOrder.qtyTransfered,makerOrder.price,makerOrder.side,makerOrder.leverage);
-                    this.userManager.addPosition(makerOrder.userId,market.marketId,positionId);      
+
+                    const initialMargin = (makerOrder.price * makerOrder.qtyTransfered) /makerOrder.leverage
                     //cut intialMargin from the user
                     const debitRes = this.userManager.debitLockAmount(makerOrder.userId,initialMargin);
-
                     if(!debitRes.success){
                         //exeception occured locked balace logic mismatch
                         throw new Error("locked balance logic got skewed");
                     }
+
+                    //create new position and need deduct the initial margin from the user plus transaction charge(maker)
+                    const {positionId} = market.createPosition(makerOrder.userId,makerOrder.qtyTransfered,makerOrder.price,makerOrder.side,initialMargin);
+                    this.userManager.addPosition(makerOrder.userId,market.marketId,positionId);      
+
 
                     //cut tax from the position initial margin
                     const tax = market.calculatetax(makerOrder.qtyTransfered*makerOrder.price,"maker");
@@ -317,7 +320,7 @@ export class Engine{
                 orderId:order.orderId,
                 price:order.price,
                 userId:order.userId,
-                qtyTransfered:response.payload.filled,
+                qtyTransfered:BigInt(response.payload.filled),
                 timestamp:Date.now().toString(),
                 leverage:order.leverage,
                 side:order.side}, market)
@@ -351,37 +354,3 @@ export class Engine{
 
 }
 
-
-function rejectOrderResponse(error:string,payload:CreateOrderRequest):EngineResponse{
-    return {
-            event:"ORDER_REJECTED",
-            payload:{
-                error:error,
-                timestamp:Date.now().toString(),
-                ...payload,
-                qty:payload.qty.toString(),
-                price:payload.price.toString(),
-                filled:"0n",
-                state:"CANCELED"} }
-}
-
-function acceptOrderResponse(order:Order,updates:{asks:string[][],bids:string[][]}){
-    return  {
-            event:"ORDER_ACCEPTED",
-            payload:{
-                type:order.type,
-                qty:order.qty.toString(),
-                price:order.price.toString(),
-                state:order.status,
-                userId:order.userId,
-                filled:0n.toString(),
-                side:order.side ,
-                marketId:order.assetId,
-                orderId:order.orderId,
-                message:"order placed fully in the book",
-                timestamp:Date.now().toString(),
-                updates:updates
-                
-            }}
-
-}

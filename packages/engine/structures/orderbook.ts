@@ -2,7 +2,7 @@ import  { AskTree } from "./askstree";
 import  { BidTree } from "./bidstree";
 import  { Dll, Node } from "./dll";
 import type { Id, IMarket, MatchOrder, Qty } from "@repo/types";
-
+import { rejectOrderResponse, acceptOrderResponse } from "../lib/placeOrderResponses";
 import  { Order } from "./order";
 import  { PriceLevelObject } from "./priceLevelData";
 import { Position} from "./position"
@@ -14,7 +14,7 @@ interface GiveSnapshot{
     giveSnapshot():string
 }
 
-type SnapshotFactory<T> = (valueSnapshotStr: string,market:IMarket) => T | null;
+type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
 
 
 const orderSnapshotSchema = z.object({
@@ -61,13 +61,6 @@ export class OrderBook{
             const entry = {price:price.toString(),levelSnapshotString:priceLevelData.giveSnapshot()};
             bids.push(entry);
         }
-    
-        
-         let ordersRef:{orderId:string,orderSnapshot:string}[]=[];
-        for(const [orderId,orderNode] of this.ordersRef.entries() ){
-            const entry = {orderId:orderId,orderSnapshot:orderNode.giveSnapshot().valueSnapshot};
-            ordersRef.push(entry);
-        }
 
         return {orderSnapshotString:JSON.stringify({asks,bids,askTree,bidTree})};
 
@@ -76,46 +69,20 @@ export class OrderBook{
     static createLevelMap<T extends Qty & GiveSnapshot & Id>(
         priceLevel: {price: bigint;levelDataSnapshotString: string;},
         priceLevelMap:Map<bigint,PriceLevelObject<T>>,
-        market:IMarket,
         createFromSnapshot: SnapshotFactory<T>,
         ref:Map<string,Node<T>>
      ){
         const { price , levelDataSnapshotString} = priceLevel;
-            const parseData = priceLevelSnapshotSchema.safeParse(JSON.parse(levelDataSnapshotString));
-            if(!parseData.success){
-                return { success:false, error:"levelDataSnapshotString got corrupted"}
+        const priceLevelData =  PriceLevelObject.createFromSnapShort<T>(levelDataSnapshotString,createFromSnapshot);
+    
+        if(priceLevelData === null) return null;    
+        const head = priceLevelData.list.getFirstOrder();
+            let current:Node<T>|null = head;
+            while(current != null){
+                const node = current.value;
+                ref.set(node.id,current);
+                current = current.right;
             }
-            const {totalQty,length,listSnapshortString} = parseData.data;
-            const listParseData =  dllSnapshortSchema.safeParse(JSON.parse(listSnapshortString));
-            if(!listParseData.success){
-                return { success:false, error:"listSnapshotString corrupted"}
-            }
-            let list:Dll<T>;
-            const listSnapshot = listParseData.data;
-            const { snapshorts } = listSnapshot;
-            snapshorts.map((s)=>{
-                const parseData = nodeSnapshotSchema.safeParse(JSON.parse(s));
-                if(!parseData.success){
-                    return { success:false, error:"nodeSnapshot is corrupted"}
-                }
-                const nodeValueSnapshotString  = parseData.data;
-                const nodeValue = createFromSnapshot(nodeValueSnapshotString.valueSnapshot,market);
-                if(!nodeValue){
-                    return { success:false, error:"nodeValuesnapshot got corrupted"}
-                }
-                if(list === undefined){
-                    const node = new Node<T>(nodeValue);
-                    ref.set(node.value.id ,node)
-                    list = new Dll(node)
-                }else{
-                    const node = new Node<T>(nodeValue);
-                    ref.set(node.value.id ,node)
-
-                    list.addNode(node);
-                }
-
-            })
-            const priceLevelData =  PriceLevelObject.createFromSnapShort<T>(totalQty,length,list!);
             priceLevelMap.set(price,priceLevelData);
 
     }
@@ -132,14 +99,11 @@ export class OrderBook{
         //create new asks tree,bids tree , shorts tree , longs tree
         const askTree = AskTree.create(orderbookSnapshot.askTree);
         const bidTree = BidTree.create(orderbookSnapshot.bidTree);
-       
-
         const ordersRef = new Map<string,Node<Order>>();
-        const positionsRef = new Map<string,Node<Position>>();
         const asks = new Map<bigint,PriceLevelObject<Order>>()
-         orderbookSnapshot.asks.forEach((ask)=> this.createLevelMap<Order>(ask,asks,market,Order.createFromSnapshot,ordersRef))
+         orderbookSnapshot.asks.forEach((ask)=> this.createLevelMap<Order>(ask,asks,Order.createFromSnapshot,ordersRef))
         const bids = new Map<bigint,PriceLevelObject<Order>>()
-         orderbookSnapshot.bids.forEach((bid)=>OrderBook.createLevelMap<Order>(bid,bids,market,Order.createFromSnapshot,ordersRef))
+         orderbookSnapshot.bids.forEach((bid)=>OrderBook.createLevelMap<Order>(bid,bids,Order.createFromSnapshot,ordersRef))
 
          const orderbook = new OrderBook();
          orderbook.asks = asks;
@@ -381,39 +345,13 @@ export class OrderBook{
             //get the pricelevel from opposite side
             const level = order.side === "SHORT"?this.bidTree.getTop():this.askTree.getMinAsk();
             if(level === undefined){
-                return {
-                     event:"ORDER_REJECTED",
-                     payload:{
-                        matchedOrders,
-                        type:order.type,
-                            qty:qty,
-                            price:price,
-                            state:status,
-                            userId,filled:order.filled,
-                            side ,
-                            marketId:order.assetId,
-                            error:"no counter offers",
-                            orderId:order.orderId,
-                            timestamp:Date.now().toString()}}
+                return  rejectOrderResponse("no counter offers",{...order,marketId:order.assetId})
             }
             let opSidelevelData= order.side === "LONG"?this.asks.get(level):this.bids.get(level);
             if(opSidelevelData === undefined){
                 //no opposite price level present for the asset ,so reject he market Order
                 order.side === "LONG"?this.addBidOrder(order):this.addAskOrder(order);
-                return {
-                    event:"ORDER_REJECTED",
-                    payload:{
-                        matchedOrders,
-                        type:order.type,
-                        qty:qty,
-                        price:price,
-                        state:status,
-                        userId,filled:order.filled,
-                        side ,
-                        marketId:order.assetId,
-                        orderId:order.orderId,
-                        error:"no opposit orders",
-                        timestamp:Date.now().toString()}};
+                return rejectOrderResponse("no counter offers",{...order,marketId:order.assetId})
             }
             
             //ask level avialable ---> we can match the order and execute the order --->add to position or open new position

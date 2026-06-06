@@ -4,6 +4,8 @@ import  { Dll, Node } from "./dll";
 
 import { z } from "zod"
 
+type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
+
 
 export const priceLevelSnapshotSchema = z.object({
     totalQty:z.string().transform((p)=>BigInt(p)),
@@ -38,8 +40,39 @@ export class PriceLevelObject<T extends Qty & GiveSnapshot & Id >{
     }
 
 
-    static createFromSnapShort<T extends Qty & GiveSnapshot & Id>(totalQty:bigint,length:number,dll:Dll<T>){
-        const priceLevelData = new PriceLevelObject<T>(dll,totalQty,length);
+    static createFromSnapShort<T extends Qty & GiveSnapshot & Id>(levelDataSnapshotString:string,createFromSnapshot: SnapshotFactory<T>){
+             
+                    const parseData = priceLevelSnapshotSchema.safeParse(JSON.parse(levelDataSnapshotString));
+                    if(!parseData.success){
+                        console.log({ success:false, error:"levelDataSnapshotString got corrupted"});
+                        return null;
+                    }
+                    const {totalQty,length,listSnapshortString} = parseData.data;
+                    let list:Dll<T> | null= Dll.createFromSnapshot(listSnapshortString,createFromSnapshot);
+                    if(list === null){
+                        console.log({error:"dlll is not created",success:false});
+                        return null;
+                    }
+                    
+                    if(!list) return null;
+            //checking the length and total qty is maintained
+            let current = list.getFirstOrder();
+            let totalNodes = 0;
+            let totalQuantity = 0n;
+            while(current != null){
+                const node = current.value;
+                totalNodes += 1;
+                totalQuantity += node.qty;
+
+            }
+
+            if(!(totalQty===totalQuantity) || !(totalNodes===length)){
+
+                console.log("total qty or total length invarients does not maintained");
+                return null;
+            }
+        
+        const priceLevelData = new PriceLevelObject<T>(list,totalQty,length);
         return priceLevelData;      
 
     }

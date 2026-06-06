@@ -87,6 +87,19 @@
         "typescript": "^5",
       },
     },
+    "apps/tests": {
+      "name": "@repo/tests",
+      "dependencies": {
+        "@repo/engine-package": "*",
+        "@repo/types": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "apps/wsServer": {
       "name": "wsserver",
       "dependencies": {
@@ -212,6 +225,8 @@
     "@repo/db": ["@repo/db@workspace:packages/db"],
 
     "@repo/engine-package": ["@repo/engine-package@workspace:packages/engine"],
+
+    "@repo/tests": ["@repo/tests@workspace:apps/tests"],
 
     "@repo/types": ["@repo/types@workspace:packages/types"],
 

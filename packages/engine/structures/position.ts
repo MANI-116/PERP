@@ -12,6 +12,8 @@ export const positionSnapshotSchema = z.object({
             state:z.custom<PositionState>(),
             initialMargin:z.string().transform((p)=>BigInt(p)),
             avgPrice:z.string().transform((p)=>BigInt(p)),
+            mmr:z.string().transform((p)=>BigInt(p)),
+            markPrice:z.string().transform((p)=>BigInt(p))
             
             })
 type PositionSnapshot = z.infer<typeof positionSnapshotSchema>
@@ -19,17 +21,15 @@ type PositionSnapshot = z.infer<typeof positionSnapshotSchema>
 export class Position implements GiveSnapshot,Id {
     public id:string;
     public state:PositionState="OPEN";
-    public initialMargin:bigint;
     public unrealizedPnL:bigint;
     public avgPrice:bigint;
     public liquidationPrice:bigint;
     
-    constructor(public userId:string, public qty:bigint, price:bigint, public side:OrderSide,public mmr:bigint,public markPrice:bigint,leverage:bigint){
+    constructor(public userId:string, public qty:bigint, price:bigint, public side:OrderSide,public mmr:bigint,public markPrice:bigint,public initialMargin:bigint){
         this.id =`${userId+Date.now()}`;
   
         this.avgPrice = price;
-         const positionalSize = this.avgPrice * this.qty;
-        this.initialMargin = positionalSize/leverage;
+  
         this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty;
         let direction =  this.side ==="SHORT" ?1n:-1n;
         this.liquidationPrice = ((this.avgPrice*this.qty)+this.initialMargin*direction)/(this.qty * (1000n-this.mmr));
@@ -50,31 +50,32 @@ export class Position implements GiveSnapshot,Id {
     giveSnapshot(){
         //things need to create the state
         //userId,marketId,qty,side,id,state,initialMargin,avgPrice
-        const snapshot = { userId:this.userId,
+        const snapshot = {
+             userId:this.userId,
              qty:this.qty.toString(),
              side:this.side,
              id:this.id,
              state:this.state,
              initialMargin:this.initialMargin.toString(),
-             avgPrice:this.avgPrice.toString()
+             avgPrice:this.avgPrice.toString(),
+             markPrice:this.markPrice.toString(),
+             mmr:this.mmr.toString()
             }
 
         return JSON.stringify(snapshot)
     }
 
-    static createFromSnapshot(positionSnapshotstring:string,market:IMarket):Position|null{
+    static createFromSnapshot(positionSnapshotstring:string):Position|null{
 
         const parseData = positionSnapshotSchema.safeParse(JSON.parse(positionSnapshotstring));
         if(!parseData.success) return null;
         const positionSnapshot = parseData.data;
 
-        const { userId,qty,price,side,initialMargin,state,id,avgPrice} = positionSnapshot;
+        const { userId,qty,side,initialMargin,state,id,avgPrice,mmr,markPrice} = positionSnapshot;
 
-        const position = new Position(userId,qty,price,side,market.mmr,market.markPrice,1n);
-        position.initialMargin = initialMargin;
+        const position = new Position(userId,qty,avgPrice,side,mmr,markPrice,initialMargin);
         position.id = id;
         position.state=state;
-        position.avgPrice=avgPrice;
         position.setLiquidationPrice();
         position.setUnrealizedPnL();
         return position;

@@ -1,12 +1,12 @@
 import { z } from "zod"
 import { type Id } from "@repo/types"
 export const dllSnapshortSchema = z.object({
-    snapshots:z.array(z.string())
+    snapshorts:z.array(z.string())
 })
-export const nodeSnapshotSchema = z.string();
+export const nodeSnapshotSchema = z.object({
+    valueSnapshot:z.string()
+})
 
-
-type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
 
 
 export class Node<T extends GiveSnapshot & Id>{
@@ -36,62 +36,23 @@ export class Dll<T extends GiveSnapshot & Id>{
         this.tail = node;
         this.length++;
     }
-
-    static createFromSnapshot<T extends GiveSnapshot & Id>(snapshotString:string,createFromSnapshot: SnapshotFactory<T>,){
-
-        const listParseData =  dllSnapshortSchema.safeParse(JSON.parse(snapshotString));
-            if(!listParseData.success){
-                console.log({ success:false, error:"listSnapshotString corrupted"});
-                return null;
-            }
-            let list:Dll<T>;
-            const listSnapshot = listParseData.data;
-            const { snapshots } = listSnapshot;
-            //FIFO NEED TO BE MAITAINED
-            snapshots.map((s)=>{
-                const parseData = nodeSnapshotSchema.safeParse(JSON.parse(s));
-                if(!parseData.success){
-                    console.log({ success:false, error:"nodeSnapshot is corrupted"});
-                    return null;
-                }
-                const nodeValueSnapshotString  = parseData.data;
-                const nodeValue = createFromSnapshot(nodeValueSnapshotString);
-                if(!nodeValue){
-                    console.log({ success:false, error:"nodeValuesnapshot got corrupted"});
-                    return null;
-                }
-                if(list === undefined){
-                    const node = new Node<T>(nodeValue);
-                    list = new Dll<T>(node)
-                }else{
-                    const node = new Node<T>(nodeValue);
-                    list.addNode(node);
-                }
-
-            })
-
-            if(list!)
-            return list;
-
-            return null;
-
-    }
-    
-    giveSnapshot(){     
-            const snapshots:string[] = [];
-            let current = this.head;
-            while(current.right != null){
-                snapshots.push(current.value.giveSnapshot());
-                current = current.right;
-    
-            }
-            snapshots.push(current.value.giveSnapshot());
-    
-            return JSON.stringify({snapshots});
-    
-        }
     getFirstOrder(){
         return this.head;
+    }
+
+    giveSnapshot(){
+      
+        const snapshots:string[] = [];
+        let current = this.head;
+        while(current.right != null){
+            snapshots.push(current.value.giveSnapshot());
+            current = current.right;
+
+        }
+        snapshots.push(current.value.giveSnapshot());
+
+        return JSON.stringify({ snapshots});
+
     }
 
    

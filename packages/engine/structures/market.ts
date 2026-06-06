@@ -311,9 +311,10 @@ export class Market{
         return response;
 
     }
-    createPosition(userId:string,qty:bigint,price:bigint,side:OrderSide,leverage:bigint){
+    createPosition(userId:string,qty:bigint,price:bigint,side:OrderSide,initialMargin:bigint){
         
-            const position = new Position(userId,qty,price,side,this.mmr,this.markPrice,leverage);
+        
+            const position = new Position(userId,qty,price,side,this.mmr,this.markPrice,initialMargin);
 
             //add position
             side === "SHORT"? this.addShort(position):this.addLong(position);
