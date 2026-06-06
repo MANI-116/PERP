@@ -21,7 +21,9 @@ export class BidTree{
     }
 
     private findPosition(price:bigint,start:number,end:number):number{
-        if(start < end || this.prices.length >= end) return -1;
+        if(start > end || start >= this.prices.length || end >= this.prices.length || start < 0 || end < 0 ){
+            return -1;
+        }
         if(start === end ){
             if(this.prices[start] === price) {
                 return start;
@@ -45,7 +47,7 @@ export class BidTree{
     }
     removePrice(price:bigint){
                const position = this.findPosition(price,0,this.prices.length-1);
-               if(position > 0 || position === this.prices.length || this.prices[position] != price){
+               if( position === this.prices.length || this.prices[position] != price){
                 return true;
 
                }
@@ -69,7 +71,7 @@ export class BidTree{
             this.prices.push(price);
             //shift the prices
             for(let i = this.prices.length-1;i >0 ; i--){
-                this.prices[i]!=this.prices[i-1];
+                this.prices[i] = this.prices[i-1]!;
             }
 
             this.prices[0] = price;

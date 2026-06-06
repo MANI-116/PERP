@@ -66,6 +66,54 @@
             "stopOnEntry": false,
             "watchMode": false
         },
+        {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "askTree testing",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/askTree.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+        {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "bidTree",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/bidTree.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+         {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "priceLevelObject class snapshot and recovery",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/priceLevelObject.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
+        {
+            "type": "bun",
+            "internalConsoleOptions": "neverOpen",
+            "request": "launch",
+            "name": "orderbook snapshot and recovery",
+            "runtime": "bun",
+             "runtimeArgs": ["test"],
+            "program": "${workspaceFolder}/apps/tests/snapshot_recovery/orderbook.ts",
+            "cwd": "${workspaceFolder}/apps/tests/snapshot_recovery",
+            "stopOnEntry": false,
+            "watchMode": false
+        },
         
         {
     "type": "bun",

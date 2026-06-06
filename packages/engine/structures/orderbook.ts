@@ -1,14 +1,11 @@
 import  { AskTree } from "./askstree";
 import  { BidTree } from "./bidstree";
-import  { Dll, Node } from "./dll";
+import  { Node } from "./dll";
 import type { Id, IMarket, MatchOrder, Qty } from "@repo/types";
-import { rejectOrderResponse, acceptOrderResponse } from "../lib/placeOrderResponses";
+import { rejectOrderResponse } from "../lib/placeOrderResponses";
 import  { Order } from "./order";
 import  { PriceLevelObject } from "./priceLevelData";
-import { Position} from "./position"
 import { z } from "zod";
-import {  priceLevelSnapshotSchema } from "./priceLevelData";
-import { dllSnapshortSchema, nodeSnapshotSchema } from "./dll";
 
 interface GiveSnapshot{
     giveSnapshot():string
@@ -19,10 +16,10 @@ type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
 
 const orderSnapshotSchema = z.object({
     asks:z.array(z.object({price:z.string().transform((p)=>BigInt(p)),
-        levelDataSnapshotString:z.string()
+        levelSnapshotString:z.string()
     })),
     bids:z.array(z.object({price:z.string().transform((p)=>BigInt(p)),
-        levelDataSnapshotString:z.string()
+        levelSnapshotString:z.string()
     })),
     askTree:z.array(z.string().transform((p)=>BigInt(p))),
     bidTree:z.array(z.string().transform((p)=>BigInt(p))),
@@ -67,13 +64,13 @@ export class OrderBook{
     }
 
     static createLevelMap<T extends Qty & GiveSnapshot & Id>(
-        priceLevel: {price: bigint;levelDataSnapshotString: string;},
+        priceLevel: {price: bigint;levelSnapshotString: string;},
         priceLevelMap:Map<bigint,PriceLevelObject<T>>,
         createFromSnapshot: SnapshotFactory<T>,
         ref:Map<string,Node<T>>
      ){
-        const { price , levelDataSnapshotString} = priceLevel;
-        const priceLevelData =  PriceLevelObject.createFromSnapShort<T>(levelDataSnapshotString,createFromSnapshot);
+        const { price , levelSnapshotString} = priceLevel;
+        const priceLevelData =  PriceLevelObject.createFromSnapShort<T>(levelSnapshotString,createFromSnapshot);
     
         if(priceLevelData === null) return null;    
         const head = priceLevelData.list.getFirstOrder();
@@ -87,7 +84,7 @@ export class OrderBook{
 
     }
 
-    static createFromSnapshot(orderSnapshotString:string,market:IMarket){
+    static createFromSnapshot(orderSnapshotString:string){
         const parseData = orderSnapshotSchema.safeParse(JSON.parse(orderSnapshotString));
         if(!parseData.success){
             return null;
@@ -110,7 +107,7 @@ export class OrderBook{
          orderbook.bids = bids;
          orderbook.askTree = askTree;
          orderbook.bidTree = bidTree;
-        
+         orderbook.ordersRef = ordersRef;
 
     return orderbook;
     }

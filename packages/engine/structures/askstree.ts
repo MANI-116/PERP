@@ -62,7 +62,7 @@ export class AskTree{
             return true;
         }
         const index = this.findPosition(price,0,this.prices.length-1);
-        console.log("place to put price-",index);
+      
         if(index === -1 ){
             //insert at start
             this.prices.push(price);
@@ -98,8 +98,8 @@ export class AskTree{
     }
 
     removePrice(price:bigint){
-        const position = this.findPosition(price,0,this.prices.length);
-        if(position === -1 || position === this.prices.length) return true;
+        const position = this.findPosition(price,0,this.prices.length-1);
+        if(position < 0 || position >= this.prices.length) return true;
         if(this.prices[position] === price){
             //remove the price
             if(position === this.prices.length-1){

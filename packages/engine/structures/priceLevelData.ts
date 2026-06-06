@@ -10,7 +10,7 @@ type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
 export const priceLevelSnapshotSchema = z.object({
     totalQty:z.string().transform((p)=>BigInt(p)),
     length:z.string().transform((p)=>Number(p)),
-    listSnapshortString:z.string()
+    listSnapshotString:z.string()
 })
 
 export type PriceLevelSnapshot = z.infer<typeof priceLevelSnapshotSchema>
@@ -47,8 +47,8 @@ export class PriceLevelObject<T extends Qty & GiveSnapshot & Id >{
                         console.log({ success:false, error:"levelDataSnapshotString got corrupted"});
                         return null;
                     }
-                    const {totalQty,length,listSnapshortString} = parseData.data;
-                    let list:Dll<T> | null= Dll.createFromSnapshot(listSnapshortString,createFromSnapshot);
+                    const {totalQty,length,listSnapshotString} = parseData.data;
+                    let list:Dll<T> | null= Dll.createFromSnapshot(listSnapshotString,createFromSnapshot);
                     if(list === null){
                         console.log({error:"dlll is not created",success:false});
                         return null;
@@ -56,13 +56,14 @@ export class PriceLevelObject<T extends Qty & GiveSnapshot & Id >{
                     
                     if(!list) return null;
             //checking the length and total qty is maintained
-            let current = list.getFirstOrder();
+            let current:Node<T> | null = list.getFirstOrder();
             let totalNodes = 0;
             let totalQuantity = 0n;
             while(current != null){
                 const node = current.value;
                 totalNodes += 1;
                 totalQuantity += node.qty;
+                current = current.right;
 
             }
 
@@ -80,7 +81,7 @@ export class PriceLevelObject<T extends Qty & GiveSnapshot & Id >{
     giveSnapshot(){
         const listSnapshotString = this.list.giveSnapshot();
         
-        return JSON.stringify({snapshot:{totalQty:this.totalQty.toString(),length:this.length.toString(),listSnapshotString}})
+        return JSON.stringify({totalQty:this.totalQty.toString(),length:this.length.toString(),listSnapshotString})
 
     }
     
