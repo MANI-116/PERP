@@ -6,8 +6,6 @@ export const positionSnapshotSchema = z.object({
             userId:z.string(),
             qty:z.string().transform((p)=>BigInt(p)),
             side:z.custom<OrderSide>(),
-            price:z.string().transform((p)=>BigInt(p)),
-            marketId:z.string(),
             id:z.string(),
             state:z.custom<PositionState>(),
             initialMargin:z.string().transform((p)=>BigInt(p)),
@@ -30,17 +28,17 @@ export class Position implements GiveSnapshot,Id {
   
         this.avgPrice = price;
   
-        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty;
-        let direction =  this.side ==="SHORT" ?1n:-1n;
-        this.liquidationPrice = ((this.avgPrice*this.qty)+this.initialMargin*direction)/(this.qty * (1000n-this.mmr));
+        let direction =  this.side ==="SHORT" ?-1n:1n;
+        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty*direction;
+        this.liquidationPrice = ((this.avgPrice*this.qty)-this.initialMargin*direction)/(this.qty * (1000n-this.mmr));
 
         
     }
     reduceMargin(amount:bigint){
-        this.initialMargin -= amount;
         if(this.initialMargin <= amount ) {
             return{ success:false,error:"not enough margins"}
         }
+        this.initialMargin -= amount;
         return { success:true}
         
 
@@ -89,7 +87,8 @@ export class Position implements GiveSnapshot,Id {
 
      }
      setUnrealizedPnL(){
-        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty;
+              let direction =  this.side ==="SHORT" ?-1n:1n;
+        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty*direction;
      }
 
      setLiquidationPrice(){
