@@ -49,7 +49,7 @@ export class Dll<T extends GiveSnapshot & Id>{
             const { snapshots } = listSnapshot;
             //FIFO NEED TO BE MAITAINED
             snapshots.map((s)=>{
-                const parseData = nodeSnapshotSchema.safeParse(JSON.parse(s));
+                const parseData = nodeSnapshotSchema.safeParse(s);
                 if(!parseData.success){
                     console.log({ success:false, error:"nodeSnapshot is corrupted"});
                     return null;

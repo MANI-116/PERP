@@ -11,12 +11,16 @@ type createOrderResponse = OrderAcceptedResponse | OrderFilledPartiallyResponse 
 const engineSnapshotschema = z.object({ 
     userManagerSnapshot:z.string(),
     marketManagerSnapshot:z.string(),
-     orderbookSnapshot:z.string()})
+     })
 
 export class Engine{
     private userManager:UserManager
     private marketManager:MarketManager
-    private static engine:Engine| null
+    private static engine:Engine| null;
+    private exchangeMarketBalance=0n;
+    static reset() {
+    Engine.engine = null;
+}
     
     constructor(){
         this.userManager = UserManager.create();
@@ -58,7 +62,13 @@ export class Engine{
 
         return engine;
     }
-    emergencyLiquidation(position:string){
+    handleBankRuptcy(position:string,amount:bigint){
+        //TODO handle exchange balance
+        this.exchangeMarketBalance -= amount;
+        if(this.exchangeMarketBalance < 0){
+            //TODO ---> perform ADL
+        }
+
 
     }
 
@@ -75,12 +85,13 @@ export class Engine{
             //userId,marketId,price
       
                 const response = this.userManager.getPosition(makerOrder.userId,market.marketId);
+                if(!response.success && response.error === "user not found"){
+
+                     throw new Error('user not found');
+                }
                 if(!response.success){
-
-                    if(response.error === "user not found"){
-                        throw new Error('user not found');
-                    }
-
+                    //no existing position
+                    
                     const initialMargin = (makerOrder.price * makerOrder.qtyTransfered) /makerOrder.leverage
                     //cut intialMargin from the user
                     const debitRes = this.userManager.debitLockAmount(makerOrder.userId,initialMargin);
@@ -97,16 +108,25 @@ export class Engine{
                     //cut tax from the position initial margin
                     const tax = market.calculatetax(makerOrder.qtyTransfered*makerOrder.price,"maker");
                     const taxcutResponse =market.cutInitialMargin(positionId,tax);
-
                     if(!taxcutResponse.success){
-                        this.emergencyLiquidation(positionId);
-                    }
+                        this.handleBankRuptcy(positionId,tax);
+                    };
+                    this.exchangeMarketBalance += tax;
                   
 
                 }else{
                     //existing position ---> need to update the positions and settle the remaining 
                     //for settling things ---> update can be sane side,different side
                     let makerPositionId = response.positionId!;
+                    
+                    //cut tax from the position initial margin for the fill
+                    const tax = market.calculatetax(makerOrder.qtyTransfered*makerOrder.price,"maker");
+                    const taxcutResponse =market.cutInitialMargin(makerPositionId,tax);
+                    if(!taxcutResponse.success){
+                        this.handleBankRuptcy(makerPositionId,tax);
+                    }
+                    this.exchangeMarketBalance += tax;
+
                     const getData = market.getData(makerPositionId,{keys:["avgPrice","side","initialMargin","qty","id"]});
                   
                       if(!getData.success){
@@ -119,9 +139,8 @@ export class Engine{
                     }
                     const { initialMargin:makerMargin,side:makerSide,qty:makerQty,avgPrice:makerPrice,id} = getData.data;
                     
-                     const updateRes = market.updatePositions(response.positionId!,makerOrder.side,makerOrder.userId,makerOrder.price,makerOrder.leverage,makerOrder.qtyTransfered)
+                     market.updatePositions(response.positionId!,makerOrder.side,makerOrder.userId,makerOrder.price,makerOrder.leverage,makerOrder.qtyTransfered)
                     const notionalAmount = makerOrder.qtyTransfered * makerOrder.price;
-                    const tax = market.calculatetax(notionalAmount,"maker");
                       //same side
                       if(makerOrder.side === makerSide){
                           //---> update the qty, need extra margin for newly updated qty
@@ -143,42 +162,42 @@ export class Engine{
                                  
      
                                  if(settlementAmount < 0){
-                                     return this.emergencyLiquidation(makerPositionId);
+                                     return this.handleBankRuptcy(makerPositionId,settlementAmount);
                                  }
                                  this.userManager.rampUser(makerOrder.userId,settlementAmount);
                                  
 
                             }else{
                                 //--->reverse ---> we have some margin before new Position, so settle that balance and have new margin -->
-                                        const direction = makerSide === "SHORT" ? -1n :1n;
-                                 const realizedPnL = (makerOrder.price-makerPrice)*(makerOrder.qtyTransfered-makerQty)*direction;
+                                 const direction = makerSide === "SHORT" ? -1n :1n;
+                                 const realizedPnL = (makerOrder.price-makerPrice)*(makerQty)*direction;
                                  const releasedMargin = makerMargin; 
                                  const settlementAmount =  releasedMargin + realizedPnL;
-                                 makerPositionId = updateRes.positionId;
-                                 
-     
                                  if(settlementAmount < 0){
-                                     return this.emergencyLiquidation(makerPositionId);
+                                     this.handleBankRuptcy(makerPositionId,settlementAmount);
+                                     return {
+                                            success:false,
+                                            reason:"INSUFFICIENT_MARGIN_AFTER_REALIZATION"
+                                            }
                                  }
                                  this.userManager.rampUser(makerOrder.userId,settlementAmount);
 
-                                  //cut intialMargin from the user
-                                 this.userManager.addPosition(makerOrder.userId,market.marketId,updateRes.positionId);
-                
-                                 const debitRes = this.userManager.debitLockAmount(makerOrder.userId,updateRes.initialMargin);
-
+                               
+                                 //deduct the balance from the user locked:
+                                 const openingQty = (makerOrder.qtyTransfered-makerQty)
+                                 const initialMargin = (openingQty *makerOrder.price)/makerOrder.leverage;
+                                 const debitRes = this.userManager.debitLockAmount(makerOrder.userId,initialMargin);
+                         
                                  if(!debitRes.success){
                                         //exeception occured locked balace logic mismatch
                                         throw new Error("locked balance logic got skewed");
                                     }
+                                 //margin is deducted now we need to create the new position:
+                                const {positionId} = market.createPosition(makerOrder.userId,openingQty,makerOrder.price,makerOrder.side,initialMargin);   
 
-                            }
+                                 this.userManager.addPosition(makerOrder.userId,market.marketId,positionId);
+                
 
-                              //cut tax from the position initial margin
-                            const tax = market.calculatetax(makerOrder.qtyTransfered*makerOrder.price,"maker");
-                            const taxcutResponse =market.cutInitialMargin(makerPositionId,tax);
-                            if(!taxcutResponse.success){
-                                this.emergencyLiquidation(makerPositionId);
                             }
                       }
                     //*** make sure we locked margin for the extra qty only */
@@ -190,13 +209,13 @@ export class Engine{
             const sameMarketPosition = this.userManager.getPosition(payload.userId,market.marketId);
             if(sameMarketPosition.success){
                 //check the side, if same side lock the balance else move on
-                const getdataRes  = market.getData(sameMarketPosition.positionId,{keys:["side"]});
+                const getdataRes  = market.getData(sameMarketPosition.positionId,{keys:["side","qty"]});
                 if(!getdataRes.success){
                     console.log("something went wrong");
                     return { success:false, error:"market unable to get side from the market"};
                 }
 
-                const { side } = getdataRes.data!;
+                const { side,qty:positionQty } = getdataRes.data!;
 
                 if(payload.side === side){
                     //lock margin
@@ -221,7 +240,13 @@ export class Engine{
                         }
                         return { success:true,message:"locked the margin"};
                 }else{
-                    return { success:true, message:"opposite side position found,no need to lock"}
+
+                     const openingQty =  payload.qty-positionQty;
+                     const initialMargin = (openingQty*payload.price)/payload.leverage;  
+                     if(!this.userManager.lockAmount(payload.userId,initialMargin) ){
+                            return {success:false,error:"does not have enough balace"};
+                        }
+                        return { success:true,message:"locked the margin"};
                 }
             }else{
                 //no position existed, just lock the initial Margin
@@ -316,7 +341,7 @@ export class Engine{
             })
 
             //update taker positions and manage finances
-            const result = this.matchOrderExecution({ 
+             this.matchOrderExecution({ 
                 orderId:order.orderId,
                 price:order.price,
                 userId:order.userId,

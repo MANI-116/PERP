@@ -48,7 +48,7 @@ export class PriceLevelObject<T extends Qty & GiveSnapshot & Id >{
                         return null;
                     }
                     const {totalQty,length,listSnapshotString} = parseData.data;
-                    let list:Dll<T> | null= Dll.createFromSnapshot(listSnapshotString,createFromSnapshot);
+                    let list:Dll<T> | null= Dll.createFromSnapshot<T>(listSnapshotString,createFromSnapshot);
                     if(list === null){
                         console.log({error:"dlll is not created",success:false});
                         return null;

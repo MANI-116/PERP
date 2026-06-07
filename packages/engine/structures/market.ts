@@ -4,14 +4,25 @@ import { Position } from "./position";
 import  { BidTree } from "./bidstree";
 import  { AskTree } from "./askstree";
 import { OrderBook } from "./orderbook";
-import  { Order } from "./order";
 import type { OrderSide } from "@repo/types";
+import {z} from "zod";
 
-
-
+const marketSnapshotSchema = z.object({
+            symbol:z.string(),
+            marketId:z.string(),
+            markPrice:z.string().transform((p)=>BigInt(p)),
+            mmr:z.string().transform((p)=>BigInt(p)),
+            takerRate:z.string().transform((p)=>BigInt(p)),
+            makerRate:z.string().transform((p)=>BigInt(p)),
+            taxationScale:z.string().transform((p)=>BigInt(p)),
+            longsSnapshot:z.array(z.object({price:z.string(),priceLevelSnapshot:z.string()})),
+            longsTreeSnapshot:z.array(z.string()),
+            shortsSnapshot:z.array(z.object({price:z.string(),priceLevelSnapshot:z.string()})),
+            shortsTreeSnapshot:z.array(z.string()),
+            orderbookSnapshot:z.string()
+})
 export class Market{
-   
-    private static market:Market|null
+  
     public longs:Map<bigint,PriceLevelObject<Position>>
     public shorts:Map<bigint,PriceLevelObject<Position>>
     public positionsRef:Map<string,Node<Position>>
@@ -20,7 +31,7 @@ export class Market{
     public orderbook:OrderBook;
 
 
-    private constructor( public symbol:string, public marketId:string,public markPrice:bigint,public mmr:bigint,public takerRate:bigint,public makerRate:bigint,public taxationScale:bigint){
+     private constructor( public symbol:string, public marketId:string,public markPrice:bigint,public mmr:bigint,public takerRate:bigint,public makerRate:bigint,public taxationScale:bigint){
 
         this.longs = new Map<bigint,PriceLevelObject<Position>>();
         this.shorts = new Map<bigint,PriceLevelObject<Position>>();
@@ -30,24 +41,93 @@ export class Market{
         this.orderbook = new OrderBook();
 
     }
+
     static create( symbol:string,  marketId:string, markPrice:bigint, mmr:bigint, takerRate:bigint, makerRate:bigint, taxationScale:bigint){
-        if(Market.market){
-            return Market.market;
+        return new Market(symbol,marketId,markPrice,mmr,takerRate,makerRate,taxationScale);
+    }
+
+    giveSnapshot(){
+        //symbol,marketId,markPrice,mmr,takerRate,makerRate,taxationScale,longs,shorts,positionsRef,longsTree,shortsTree,orderBook
+        //orderbook , longstree, shortsTree have there ownsnapshot and recovery and for position also
+        //positionRef need to be created
+        const longsSnapshot = Array.from(this.longs.entries()).map((e)=>{ return {price:e[0].toString(),priceLevelSnapshot:e[1].giveSnapshot()}});
+        const shortsSnapshot = Array.from(this.shorts.entries()).map((e)=>{ return { price:e[0].toString(),priceLevelSnapshot:e[1].giveSnapshot()}});
+        const longsTreeSnapshot = this.longsTree.clone();
+        const shortsTreeSnapshot = this.shortsTree.clone();
+        const orderbookSnapshot = this.orderbook.giveSnapshot();
+
+        return JSON.stringify({
+            symbol:this.symbol,
+            marketId:this.marketId,
+            markPrice:this.markPrice.toString(),
+            mmr:this.mmr.toString(),
+            takerRate:this.takerRate.toString(),
+            makerRate:this.makerRate.toString(),
+            taxationScale:this.taxationScale.toString(),
+            longsSnapshot,
+            longsTreeSnapshot,
+            shortsSnapshot,
+            shortsTreeSnapshot,
+            orderbookSnapshot})
+    }
+
+    static createFromSnapshot(snapshotString:string){
+        
+        const parseData= marketSnapshotSchema.safeParse( JSON.parse(snapshotString));
+        if(!parseData.success){
+            return null;
+        }
+        const {symbol,marketId,markPrice, mmr,takerRate,makerRate,taxationScale,longsSnapshot,longsTreeSnapshot,shortsSnapshot,shortsTreeSnapshot,orderbookSnapshot} = parseData.data;
+        const longsLevelMap = new Map<bigint,PriceLevelObject<Position>>();
+        const shortsLevelMap = new Map<bigint,PriceLevelObject<Position>>();
+        const positionRef = new Map<string,Node<Position>>();
+   
+        for(const level of longsSnapshot){
+             const levelData = PriceLevelObject.createFromSnapShort<Position>(level.priceLevelSnapshot,Position.createFromSnapshot);
+            if(levelData === null) return null;
+            const list = levelData.list;
+            let current:Node<Position>|null = list.getFirstOrder();
+            while(current != null){
+                positionRef.set(current.value.id,current);
+                current = current.right;
+            }
+            longsLevelMap.set(BigInt(level.price),levelData);
 
         }
-         Market.market = new Market(symbol,marketId,markPrice,mmr,takerRate,makerRate,taxationScale);
-        
-        return Market.market;
+        for(const level of shortsSnapshot){
+            const levelData = PriceLevelObject.createFromSnapShort<Position>(level.priceLevelSnapshot,Position.createFromSnapshot);
+            if(levelData === null) return null;
+                const list = levelData.list;
+                let current:Node<Position>|null = list.getFirstOrder();
+                while(current != null){
+                    positionRef.set(current.value.id,current);
+                    current = current.right;
+                }
+                shortsLevelMap.set(BigInt(level.price),levelData)
+
+        }
+       
+            
+            const orderbook = OrderBook.createFromSnapshot(orderbookSnapshot);
+            if(!orderbook) return null;
+            
+            const newMarket = Market.create(symbol,marketId,markPrice,mmr,takerRate,makerRate,taxationScale);
+            newMarket.longs = longsLevelMap;
+            newMarket.shorts = shortsLevelMap;
+            newMarket.positionsRef = positionRef;
+            newMarket.orderbook = orderbook;
+            newMarket.longsTree = BidTree.create(longsTreeSnapshot.map((p)=>BigInt(p)));
+            newMarket.shortsTree = AskTree.create(shortsTreeSnapshot.map((p)=>BigInt(p)));
+            
+            return newMarket;
+            
+            
     }
+
     calculatetax(notionalAmount:bigint,type:"taker"|"maker"){   
         let taxRate = type === "taker" ? this.takerRate : this.makerRate;
         const tax = (notionalAmount* taxRate)/this.taxationScale;
         return tax;  
-    }
-
-    matchMarketOrder(order:Order){
-        
-
     }
 
     calculateEstimatedPrice(qty:bigint,side:OrderSide){
@@ -91,6 +171,7 @@ export class Market{
             if(estimatedPrice === undefined) return 0n;
             return estimatedPrice;
     }
+
     getMargin(positionId:string){
           const positionNode = this.positionsRef.get(positionId);
                 if(!positionNode) return { error:" postion not found",success:false};
@@ -99,6 +180,7 @@ export class Market{
          return { success:true, margin:position.initialMargin }
 
     }
+
     getData<K extends keyof Position>(positionId:string,data:{keys:K[]}){
          const positionNode = this.positionsRef.get(positionId);
         if(!positionNode) return { error:" postion not found",success:false};
@@ -113,6 +195,7 @@ export class Market{
        return { success:true, data:responseData}
 
     }
+
      getSide(positionId:string){
           const positionNode = this.positionsRef.get(positionId);
                 if(!positionNode) return { error:" postion not found",success:false};
@@ -121,6 +204,7 @@ export class Market{
          return { success:true, side:position.side };
 
     }
+
      getQty(positionId:string){
           const positionNode = this.positionsRef.get(positionId);
                 if(!positionNode) return { error:" postion not found",success:false};
@@ -129,6 +213,7 @@ export class Market{
          return { success:true, qty:position.qty };
 
     }
+
     PartialFillPosition(positionId:string,price:bigint,qty:bigint){
                 const positionNode = this.positionsRef.get(positionId);
                 if(!positionNode) return { error:" postion not found",success:false};
@@ -154,48 +239,65 @@ export class Market{
             
             return { success:true,message:"updated positons",settlementAmount}
 
-        }
+    }
 
     updatePositions(positionId:string,side:OrderSide,userId:string,price:bigint,leverage:bigint,qty:bigint){
     /**
          * we have the existing position, but the order either to settle or take more
          * 
          */
-        const response = { isNewPosition:false, positionId:"",initialMargin:0n}
+       // const response = { isNewPosition:false, positionId:"",initialMargin:0n}
         const positionNode = this.positionsRef.get(positionId);
-                if(!positionNode) return { error:" postion not found",success:false,...response};
+        if(!positionNode) return { error:" postion not found",success:false};
         let position = positionNode.value;
 
         const presentSide = side;
         if(position.side === presentSide){
+            
+            const oldLp = position.liquidationPrice;
             position.addFill(price,qty,leverage,position.side);
+            const newLp = position.liquidationPrice;
+            if(oldLp != newLp){
+                //remove the position from old lp
+                side === "SHORT" ? this.removeShort(position,oldLp):this.removeLong(position,oldLp);
+                //add positon to new lp
+                side === "SHORT" ? this.addShort(position) : this.addLong(position); 
+           }
         }else{
             //settle the contract for quantity qty
             //need to settle the unrealizedPnL
             if(qty > position.qty){
-                this.PartialFillPosition(positionId,price,qty);
-                const newQty = qty - position.qty;
-                //remove old position
-                position.side === "SHORT"?this.removeShort(position):this.removeLong(position);
-                let newPos = this.createPosition(userId,newQty,price,side,leverage) ;
-                response.isNewPosition= true;
-                response.positionId = newPos.positionId;
-                response.initialMargin  = newPos.initialMargin 
+                const oldSide = position.side;
+                const oldLp = position.liquidationPrice;
+                position.addFill(price,qty,leverage,side);
+   
+                const newQty =  position.qty;
+                //remove the position from lp map
+                 oldSide === "SHORT" ? this.removeShort(position,oldLp) : this.removeLong(position,oldLp);
+             
+             
+                // let newPos = this.createPosition(userId,newQty,price,side,leverage) ;
+
+                
+                // response.isNewPosition= true;
+                // response.positionId = newPos.positionId;
+                // response.initialMargin  = newPos.initialMargin 
 
             }else{
                 //settle the position
-                this.PartialFillPosition(positionId,price,qty);
+                 const oldLp = position.liquidationPrice;
+                 position.addFill(price,qty,leverage,side);
+
+                 side === "SHORT" ? this.removeShort(position,oldLp):this.removeLong(position,oldLp);
+                 if(position.state != "CLOSED"){
+                      side === "SHORT" ? this.addShort(position):this.addLong(position);
+                 }
+            
+           
+             
             }
         }
-        return response;
-       
-      
-
     
-}
-
-    placeOrder(order:Order){
-
     }
 
     addLong(position:Position){
@@ -299,10 +401,10 @@ export class Market{
     }
     addShortLiquidationPrice(price:bigint){
            return  this.shortsTree.addPrice(price);
-        }
+    }
     addLongLiquidationPrice(price:bigint){
            return  this.longsTree.addPrice(price);
-        }
+    }
 
     cutInitialMargin(positionId:string,amount:bigint){
         const position = this.positionsRef.get(positionId);
@@ -311,6 +413,7 @@ export class Market{
         return response;
 
     }
+
     createPosition(userId:string,qty:bigint,price:bigint,side:OrderSide,initialMargin:bigint){
         
         
@@ -318,6 +421,7 @@ export class Market{
 
             //add position
             side === "SHORT"? this.addShort(position):this.addLong(position);
+        
             
             return {positionId:position.id,initialMargin:position.initialMargin};
 

@@ -21,6 +21,7 @@ function createOrder(
   );
 }
 
+
 describe("OrderBook", () => {
 
   it("should create empty orderbook", () => {
@@ -247,7 +248,7 @@ describe("OrderBook", () => {
     const book = new OrderBook();
 
     const snapshot =
-      book.giveSnapshot().orderSnapshotString;
+      book.giveSnapshot();
 
     const recovered =
       OrderBook.createFromSnapshot(snapshot);
@@ -267,7 +268,7 @@ describe("OrderBook", () => {
 
     const recovered =
       OrderBook.createFromSnapshot(
-        book.giveSnapshot().orderSnapshotString
+        book.giveSnapshot()
       );
 
     expect(recovered).not.toBeNull();
@@ -286,7 +287,7 @@ describe("OrderBook", () => {
 
     const recovered =
       OrderBook.createFromSnapshot(
-        book.giveSnapshot().orderSnapshotString
+        book.giveSnapshot()
       );
 
     expect(recovered).not.toBeNull();
@@ -317,7 +318,7 @@ describe("OrderBook", () => {
 
     const recovered =
       OrderBook.createFromSnapshot(
-        book.giveSnapshot().orderSnapshotString
+        book.giveSnapshot()
       );
 
     expect(recovered).not.toBeNull();
@@ -349,7 +350,7 @@ describe("OrderBook", () => {
     );
 
     const snapshot1 =
-      book.giveSnapshot().orderSnapshotString;
+      book.giveSnapshot();
 
     const recovered =
       OrderBook.createFromSnapshot(
@@ -359,7 +360,7 @@ describe("OrderBook", () => {
     expect(recovered).not.toBeNull();
 
     const snapshot2 =
-      recovered!.giveSnapshot().orderSnapshotString;
+      recovered!.giveSnapshot();
 
     expect(snapshot2)
       .toEqual(snapshot1);

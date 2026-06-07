@@ -5,10 +5,7 @@ const  userSnapshotSchema = z.object({
     userId:z.string(),
     available:z.string().transform((p)=>BigInt(p)),
     locked:z.string().transform((p)=>BigInt(p)),
-    positions:z.array(z.object({
-        id:z.string(),
-        marketId:z.string()
-    }))
+    positions:z.array(z.array(z.string().min(1)).length(2))
 })
 interface PositionIdentifier{
     id:string,
@@ -28,7 +25,7 @@ export class User {
             userId:this.userId,
             available:this.collateral.available.toString(),
             locked:this.collateral.locked.toString(),
-            positions:this.positions
+            positions:Array.from(this.positions.entries())
         })
     }
 
@@ -42,10 +39,13 @@ export class User {
         //add the positions
         const map = new Map<string,string>();
         userSnapshot.positions.forEach((pos)=>{
-            map.set(pos.marketId,pos.id);
+            if(pos.length !== 2) return null;
+            map.set(pos[0]!,pos[1]!);
         })
     
         user.positions = map;
+        user.collateral.available = userSnapshot.available;
+        user.collateral.locked = userSnapshot.locked;
         return user;
 
     }

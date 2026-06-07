@@ -59,7 +59,7 @@ export class OrderBook{
             bids.push(entry);
         }
 
-        return {orderSnapshotString:JSON.stringify({asks,bids,askTree,bidTree})};
+        return JSON.stringify({asks,bids,askTree,bidTree});
 
     }
 
@@ -98,10 +98,38 @@ export class OrderBook{
         const bidTree = BidTree.create(orderbookSnapshot.bidTree);
         const ordersRef = new Map<string,Node<Order>>();
         const asks = new Map<bigint,PriceLevelObject<Order>>()
-         orderbookSnapshot.asks.forEach((ask)=> this.createLevelMap<Order>(ask,asks,Order.createFromSnapshot,ordersRef))
+        for(const priceLevel of orderbookSnapshot.asks){
+        const { price , levelSnapshotString} = priceLevel;
+        const priceLevelData =  PriceLevelObject.createFromSnapShort<Order>(levelSnapshotString,Order.createFromSnapshot);
+    
+        if(priceLevelData === null) return null;    
+        let current:Node<Order>|null= priceLevelData.list.getFirstOrder();
+          
+            while(current != null){
+                const node = current.value;
+                ordersRef.set(node.id,current);
+                current = current.right;
+            }
+             asks.set(price,priceLevelData);
+       
+        }
         const bids = new Map<bigint,PriceLevelObject<Order>>()
-         orderbookSnapshot.bids.forEach((bid)=>OrderBook.createLevelMap<Order>(bid,bids,Order.createFromSnapshot,ordersRef))
-
+        for(const priceLevel of orderbookSnapshot.bids){
+        const { price , levelSnapshotString} = priceLevel;
+        const priceLevelData =  PriceLevelObject.createFromSnapShort<Order>(levelSnapshotString,Order.createFromSnapshot);
+    
+        if(priceLevelData === null) return null;    
+        let current:Node<Order>|null= priceLevelData.list.getFirstOrder();
+          
+            while(current != null){
+                const node = current.value;
+                ordersRef.set(node.id,current);
+                current = current.right;
+            }
+             bids.set(price,priceLevelData);
+       
+        }
+    
          const orderbook = new OrderBook();
          orderbook.asks = asks;
          orderbook.bids = bids;
@@ -172,8 +200,7 @@ export class OrderBook{
         return;        
     }
     }
-
-    
+  
     removeAskOrder(order:Order){
         //we need to remove the orderRef
         //we need to remove the level if dll have only one order also
@@ -252,20 +279,22 @@ export class OrderBook{
         const requiredQty = order.qty - order.filled;
         const matchedOrder = opSidelevelData.list.getFirstOrder().value;
         const availablleQty = matchedOrder.qty- matchedOrder.filled;
-   
+        let filled = 0n;
         if(requiredQty <= availablleQty){
           matchedOrder.filled += requiredQty;
           order.filled += requiredQty;
+          filled = requiredQty;
         }else{
          matchedOrder.filled += availablleQty;
          order.filled += availablleQty;
+         filled = availablleQty;
         }
         matchedOrders.push({
             userId:matchedOrder.userId,
             price:matchedOrder.price,
             leverage:matchedOrder.leverage,
             orderId:matchedOrder.orderId,
-            qtyTransfered:matchedOrder.filled,
+            qtyTransfered:filled,
             side:matchedOrder.side,
             timestamp:Date.now().toString()})
         if(matchedOrder.filled === matchedOrder.qty ){

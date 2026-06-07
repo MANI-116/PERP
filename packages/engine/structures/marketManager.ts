@@ -19,6 +19,9 @@ const marketSnapshotSchema = z.object({
 export class MarketManager{
     private markets:Map<string,Market>
     private static marketManager:MarketManager|null;
+    static reset() {
+    MarketManager.marketManager = null;
+}
     private constructor(){
         this.markets = new Map<string,Market>();
 
@@ -57,26 +60,20 @@ export class MarketManager{
 
         const snapshots:string[] = [];
         for(const market of this.markets.values()){
-            const {markPrice,mmr,takerRate,makerRate,taxationScale} = market;
-            snapshots.push(JSON.stringify({
-                ...market,
-                mmr:mmr.toString(),
-                markPrice:markPrice.toString(),
-                takerRate:takerRate.toString(),
-                makerRate:makerRate.toString(),
-                taxationScale:taxationScale.toString()}))
+            snapshots.push(market.giveSnapshot())
         }
+        return JSON.stringify(snapshots);
 
     }
     static createFromSnapshot(marketManagerSnapshotString:string){
-        const parseData = marketManagerSnapshotSchema.safeParse(marketManagerSnapshotString);
+        const parseData = marketManagerSnapshotSchema.safeParse(JSON.parse(marketManagerSnapshotString));
         if(!parseData.success) return null;
         const marketManagerSnapshot = parseData.data;
         const marketManager = MarketManager.create();
         marketManagerSnapshot.forEach((snapshot)=>{
-            const parseData = marketSnapshotSchema.safeParse(JSON.parse(snapshot));
-            if(!parseData.success) return null;
-            marketManager.addMarket(parseData.data);
+            const market = Market.createFromSnapshot(snapshot);
+            if(!market) return null;
+            marketManager.markets.set(market.marketId,market);
         })
         return marketManager;
 

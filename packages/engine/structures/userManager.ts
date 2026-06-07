@@ -12,6 +12,9 @@ export class UserManager{
     
     private users:Map<string,User>;
     private static userManager:UserManager|null;
+    static reset() {
+    UserManager.userManager = null;
+}
     private constructor(){
         this.users = new Map<string,User>();
 

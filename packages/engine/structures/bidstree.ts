@@ -14,14 +14,12 @@ export class BidTree{
         return bidTree;
     }
     
-    
-   
     getLength(){
         return this.prices.length
     }
 
     private findPosition(price:bigint,start:number,end:number):number{
-        if(start > end || start >= this.prices.length || end >= this.prices.length || start < 0 || end < 0 ){
+        if(start > end || end >= this.prices.length || start < 0 || end < 0 ){
             return -1;
         }
         if(start === end ){
@@ -35,7 +33,7 @@ export class BidTree{
             }
         }
 
-        const middle = start + (end-start)/2 ;
+        const middle =  Math.floor( start + (end-start)/2) ;
         if(this.prices[middle] === price){
             return middle;
         }else if(this.prices[middle]! < price){
@@ -45,6 +43,7 @@ export class BidTree{
         return this.findPosition(price,start,middle-1);
 
     }
+    
     removePrice(price:bigint){
                const position = this.findPosition(price,0,this.prices.length-1);
                if( position === this.prices.length || this.prices[position] != price){

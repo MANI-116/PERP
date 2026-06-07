@@ -22,17 +22,16 @@ export class Position implements GiveSnapshot,Id {
     public unrealizedPnL:bigint;
     public avgPrice:bigint;
     public liquidationPrice:bigint;
-    
+    private MMR_SCALE=1000n;
     constructor(public userId:string, public qty:bigint, price:bigint, public side:OrderSide,public mmr:bigint,public markPrice:bigint,public initialMargin:bigint){
-        this.id =`${userId+Date.now()}`;
+        this.id =`${userId+Date.now()+Math.random()*1e6}`;
   
         this.avgPrice = price;
   
-        let direction =  this.side ==="SHORT" ?-1n:1n;
-        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty*direction;
-        this.liquidationPrice = ((this.avgPrice*this.qty)-this.initialMargin*direction)/(this.qty * (1000n-this.mmr));
-
+        let direction =  this.side ==="SHORT" ?1n:-1n;
+        this.unrealizedPnL =( this.markPrice-this.avgPrice)*this.qty*direction*-1n;   
         
+       this.liquidationPrice = (((this.avgPrice * this.qty * this.MMR_SCALE) + (this.initialMargin * direction * this.MMR_SCALE)) / (this.qty * (this.MMR_SCALE + direction * this.mmr)));
     }
     reduceMargin(amount:bigint){
         if(this.initialMargin <= amount ) {
@@ -95,8 +94,8 @@ export class Position implements GiveSnapshot,Id {
         if(this.qty === 0n || this.state ==="CLOSED"){
             throw new Error("qty is zero,we cannot measure of zero qty or state is closed ");
         }
-        let direction =  this.side ==="SHORT" ?1n:-1n;
-        this.liquidationPrice = ((this.avgPrice*this.qty)+this.initialMargin*direction)/(this.qty * (1000n-this.mmr));
+        const direction = this.side === "SHORT" ? 1n : -1n;
+        this.liquidationPrice = (((this.avgPrice * this.qty * this.MMR_SCALE) + (this.initialMargin * direction * this.MMR_SCALE)) / (this.qty * (this.MMR_SCALE + direction * this.mmr)));
      }
     
      setLeverage(leverage:bigint){
@@ -104,7 +103,7 @@ export class Position implements GiveSnapshot,Id {
      }
 
     setNewAvgPrice(price:bigint,qty:bigint){
-        this.avgPrice =( (this.avgPrice * this.qty)+(price*qty))/(this.qty+qty)
+        this.avgPrice =( (this.avgPrice * this.qty)+(price*qty))/(this.qty+qty);
     }
     addFill(price:bigint,qty:bigint,leverage:bigint,side:"LONG"|"SHORT"){
         //know wether the add fill is on the on the same side or not
@@ -114,8 +113,8 @@ export class Position implements GiveSnapshot,Id {
         if(sameSide){
             //add quantity
             //recalculate the avg price,liquidationPrice and also the margins and also change the unrealized PnL
-            this.qty += qty;
             this.setNewAvgPrice(price,qty);
+            this.qty += qty;
             const margin = (price*qty)/leverage;
             this.initialMargin += margin;
             this.setLiquidationPrice();
@@ -130,7 +129,7 @@ export class Position implements GiveSnapshot,Id {
                  * inital margin decreased
                  * calculate liquidation
                  */
-                const marginPerQty = this.qty/this.initialMargin; 
+                const marginPerQty = this.initialMargin/this.qty; 
                 this.qty -= qty;
                 this.initialMargin = this.qty*marginPerQty;
                 
@@ -144,7 +143,8 @@ export class Position implements GiveSnapshot,Id {
                
                 this.side = side;
                 this.initialMargin = (netQuantity*price)/leverage ;
-                this.setLiquidationPrice()
+                this.setLiquidationPrice();
+                return;
 
             }else{
                 //close the position

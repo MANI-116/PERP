@@ -30,7 +30,7 @@ export class Order implements GiveSnapshot,Id{
         this.maintenanceMargin = (this.qty * this.price*5n)/1000n;
     }
     giveSnapshot(){
-        return JSON.stringify(JSON.stringify({
+        return JSON.stringify({
             orderId:this.orderId,
             userId:this.userId,
             assetId:this.assetId,
@@ -43,7 +43,7 @@ export class Order implements GiveSnapshot,Id{
             filled:this.filled.toString(),
             initialMargin:this.initialMargin.toString(),
             maintenanceMargin:this.maintenanceMargin.toString()
-        }))
+        });
 
     }
     static createFromSnapshot(orderSnapshotString:string):Order|null{
