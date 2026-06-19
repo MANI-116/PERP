@@ -3,6 +3,7 @@ import type { OrderFilledResponse, OrderFilledPartiallyResponse, OrderRejectedRe
 
 export type EngineEvent = "ORDER_FILLED_PARTIALLY"|"ORDER_FILLED"|"ORDER_ACCEPTED"|"ORDER_REJECTED";
 
+export type CreateOrderResponse = OrderFilledResponse | OrderFilledPartiallyResponse | OrderRejectedResponse | OrderAcceptedResponse
 export type EngineResponse =
   {
     [K in keyof EventResponseMap]: {

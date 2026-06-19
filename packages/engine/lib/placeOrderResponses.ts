@@ -1,7 +1,7 @@
-import type { CreateOrderRequest, EngineResponse } from "@repo/types"
+import type { CreateOrderRequest, EngineResponse, OrderAcceptedResponse, OrderRejectedResponse } from "@repo/types"
 import { Order } from "../structures/order"
 
-export function rejectOrderResponse(error:string,payload:CreateOrderRequest):EngineResponse{
+export function rejectOrderResponse(error:string,payload:CreateOrderRequest):{event:"ORDER_REJECTED",payload:OrderRejectedResponse}{
     return {
             event:"ORDER_REJECTED",
             payload:{
@@ -14,7 +14,7 @@ export function rejectOrderResponse(error:string,payload:CreateOrderRequest):Eng
                 state:"CANCELED"} }
 }
 
-export function acceptOrderResponse(order:Order,updates:{asks:string[][],bids:string[][]}){
+export function acceptOrderResponse(order:Order,updates:{asks:string[][],bids:string[][]}):{event:"ORDER_ACCEPTED",payload:OrderAcceptedResponse}{
     return  {
             event:"ORDER_ACCEPTED",
             payload:{

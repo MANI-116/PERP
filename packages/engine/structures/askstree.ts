@@ -14,6 +14,9 @@ export class AskTree{
         prices.forEach((p)=>askTree.prices.push(p));
         return askTree;
     }
+     findAbove(price:bigint){
+        return this.prices.filter((p)=>{return (p >= price)})
+    }
     getLength(){
         return this.prices.length;
     }
