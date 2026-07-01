@@ -42,7 +42,7 @@ export default function UserAccount(){
                     <span>
                         balance:0
                     </span>
-                    <button onClick={()=>{setOpenModel(true)}} className="cursor-pointer text-green-800 p-1 rounded-sm mt-1 hover:bg-white">Add Amount</button>
+                    <button onClick={()=>{setOpenModel(true)}} className="cursor-pointer text-green-800 p-1 rounded-sm mt-1 hover:text-green-400">Add Amount</button>
 
                 </div>
                 <div><Image src="/site-icon.png" width={150} height={150} alt="user image"></Image></div>

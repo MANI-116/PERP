@@ -141,7 +141,7 @@ export function Orderbook(){
             temp.reverse();
 
 
-    return <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{duration:0.5}} className="flex flex-col max-w-70 bg-zinc-800 rounded-md m-2 overflow-hidden">
+    return <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{duration:0.5}} className="flex flex-col w-80 max-w-96 bg-zinc-800 rounded-md m-2 overflow-hidden">
         <div className="flex flex-row m-2 overflow-hidden">
             <div className="flex-1 text-white">Price(USD)</div>
             <div className="flex-1"> Size (BTC)</div>
@@ -181,13 +181,13 @@ export function Orderbook(){
 
             <br/>
               <br/>
-              <button
+              {/* <button
                 className="border p-2"
                 onClick={applyNextUpdate}
                 >
                 Apply Next Update
                 </button>
-                        
+                         */}
 
     </motion.div>
 }

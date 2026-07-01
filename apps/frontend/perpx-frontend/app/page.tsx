@@ -11,7 +11,7 @@ export default function Home() {
 
         <div className="bg-zinc-800 rounded-md container m-2 p-4 text-zinc-500 ">
           <div className="flex flex-row gap-x-2 mb-2">
-            <div><h2>Spot</h2></div>
+      
             <div><h2>Futures</h2></div>
             
           </div>
@@ -43,7 +43,7 @@ export default function Home() {
                 y:-10
               }}
               transition={{type:"spring", duration:0.3}}
-              onClick={()=>{router.push("/trade")}}
+              onClick={()=>{router.push(`/trade/${m.symbol}`)}}
               className=" flex flex-row items-center p-1 rounded-md border-b-1 gap-x-1 mt-1 cursor-pointer hover:bg-zinc-900">
             <div className="flex-2">
               <div className="flex flex-row items-center gap-x-1">

@@ -1,21 +1,31 @@
 "use client"
 import { Orderbook } from "@/components/Orderbook";
-import { useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { UserContext } from "@/providers/userState";
 
 export default function TradePage(){
+    const {market} = useParams();
+   
 
-  return <div className="flex flex-row  max-h-[80vh]  gap-x-2 ">
-    <div className="flex flex-row overflow-y-auto scrollbar-thumb-zinc-800 scrollbar-thin scroll-bar- gap-x-.5">
+  return<div className="container ml-2 flex flex-col items-center ">  
+    <div className="flex flex-row  max-h-[80vh]  gap-x-2 w-full justify-center ">
+    <div className="flex  w-full flex-row overflow-y-auto scrollbar-thumb-zinc-800 scrollbar-thin scroll-bar- gap-x-.5">
 
-            <div className="w-40 bg-zinc-800 rounded-md m-2 p-2">charts
+            <div className="w-[100%] bg-zinc-800 rounded-md m-2 p-2">{market}
               
             </div>
             <div> <Orderbook /></div>
-        </div>
+      </div>
    
        <OrderForm/>
-
+    
   </div> 
+     <div className="w-full">
+        <Stakes />
+       </div>
+  </div>     
+
 }
 function OrderForm(){
   
@@ -97,4 +107,40 @@ function OrderForm(){
         </div>
        </div>
 }
+
+type Tab = "ORDERS" | "POSITIONS" |"FILLS"
+
+function Stakes(){
+   const userDetails = useContext(UserContext);
+      const [openModel, setOpenModel] = useState<boolean>(false)
+      const [selectedTab,setSelectedTab] = useState<Tab>("ORDERS")
+      useEffect(()=>{
+          if(selectedTab === "ORDERS"){
+              //FECTCH ORDER AND SET THE CONTENT
+          }else if(selectedTab === "POSITIONS"){
+              //FETCH POSITIONS AND SET THE CONTENT
+          }else{
+              //FETCH THE FILLS ANDSET THE CONTENT
+          }
+  
+      },[selectedTab])
+  return <div className=" rounded-md m-2 bg-zinc-800">
+            <div className="flex felx-row gap-x-4 border-b-1 p-2 m-2">
+                <div onClick={()=>setSelectedTab("ORDERS")} className={`${selectedTab==="ORDERS"?"bg-black/40 text-white/90 ":""}`+"p-1 rounded-md cursor-pointer"}>
+                    orders
+                </div>
+                <div onClick={()=>setSelectedTab("POSITIONS")} className={`${selectedTab==="POSITIONS"?"bg-black/40 text-white/90 ":""}`+"p-1 rounded-md cursor-pointer"}>
+                    positions
+                </div>
+                <div onClick={()=>setSelectedTab("FILLS")} className={`${selectedTab==="FILLS"?"bg-black/40 text-white/90 ":""}`+"p-1 rounded-md cursor-pointer"}>
+                    fills
+                </div>
+            </div>
+            <div className="m-2 p-4">
+                selected tab content
+            </div>
+        </div>
+
+        
     
+}
