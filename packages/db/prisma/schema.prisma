@@ -35,15 +35,16 @@ enum OrderSide{
 }
 model Order{
   id String @id @default(uuid())
-  orderId  String @unique 
+  orderId  String @unique
   qty BigInt
   filled BigInt
   price BigInt
   marketId String
   type   OrderType
   side OrderSide
+  state String @default("OPEN")
   slippage BigInt?
-  userId String 
+  userId String
   MakerTransactions Transaction[] @relation("taker")
   TakerTransactions Transaction[] @relation("maker")
   user User @relation(fields: [userId],references: [userId])

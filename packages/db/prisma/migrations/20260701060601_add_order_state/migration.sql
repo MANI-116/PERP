@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "state" TEXT NOT NULL DEFAULT 'OPEN';
