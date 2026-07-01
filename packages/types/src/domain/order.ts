@@ -6,7 +6,7 @@ export type OrderStatus = "FILLED"|"PARTIALLY_FILLED"|"CANCELED"|"OPEN"
 
 export type OrderSide = "SHORT" | "LONG"
 
-export interface TransmitOrder{
+export interface  TransmitOrder{
     orderId:string,
     state:OrderStatus,
     side:OrderSide,

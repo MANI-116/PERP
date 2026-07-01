@@ -209,13 +209,16 @@ export class Engine{
             const sameMarketPosition = this.userManager.getPosition(payload.userId,market.marketId);
             if(sameMarketPosition.success){
                 //check the side, if same side lock the balance else move on
-                const getdataRes  = market.getData(sameMarketPosition.positionId,{keys:["side","qty"]});
+                const getdataRes  = market.getData(sameMarketPosition.positionId,{keys:["side","qty","state"]});
                 if(!getdataRes.success){
                     console.log("something went wrong");
                     return { success:false, error:"market unable to get side from the market"};
                 }
 
-                const { side,qty:positionQty } = getdataRes.data!;
+                const { side,qty:positionQty,state } = getdataRes.data!;
+                if(state === "LIQUIDATING"){
+                    return { success:false,error:"position in liquidating state cannot lock balances"}
+                }
 
                 if(payload.side === side){
                     //lock margin
@@ -277,7 +280,7 @@ export class Engine{
 
     }
 
-    placeLimitOrder(payload:CreateOrderRequest,market:Market){
+    placeLimitOrder(payload:CreateOrderRequest,market:Market):EngineResponse{
 
         //if user have existing position based on the qty either lock margin or skip locking mechanism
         
@@ -295,10 +298,12 @@ export class Engine{
             //@100xlong at 100 -->compler qty sit on the orderbook
             return acceptOrderResponse(order,response.payload.updates);
 
-        }else if(response.event === "ORDER_FILLED"  || response.event === "ORDER_FILLED_PARTIALLY"){
+        }
             const matchedOrders = response.payload.matchedOrders;
 
             //update the matchedorders positions and manage the margins
+            if(!matchedOrders ) throw new Error("orderfilled/partially is skewed");
+
             matchedOrders.forEach ((matchOrder)=>{
                 this.matchOrderExecution(matchOrder,market);
             })
@@ -313,15 +318,12 @@ export class Engine{
                 leverage:order.leverage,
                 side:order.side}, market)
 
-                return response;
+                return filledResponse({...response,event:`${response.event==="ORDER_FILLED"?"ORDER_FILLED":"ORDER_FILLED_PARTIALLY"}`,payload:{...response.payload,matchedOrders}},order);
         
-
-
-        }
         
     }
 
-    placeMarketOrder(payload:CreateOrderRequest,market:Market){
+    placeMarketOrder(payload:CreateOrderRequest,market:Market):EngineResponse{
 
         const lockres = this.lockMargin(payload,market);
         if(!lockres.success) { return rejectOrderResponse(lockres.error,payload)};
@@ -330,11 +332,11 @@ export class Engine{
         const response = market.orderbook.matchMarketOrder(order);
 
          if(response.event === "ORDER_REJECTED"){
-             return rejectOrderResponse("no counter offers exists",payload);
+             return response;
         
-        }else if(response.event === "ORDER_FILLED"  || response.event === "ORDER_FILLED_PARTIALLY"){
+        }       
             const matchedOrders = response.payload.matchedOrders;
-
+            if(!matchedOrders) throw new Error("orderfilled partially is skewed")
             //update the matchedorders positions and manage the margins
             matchedOrders.forEach ((matchOrder)=>{
                 this.matchOrderExecution(matchOrder,market);
@@ -350,15 +352,11 @@ export class Engine{
                 leverage:order.leverage,
                 side:order.side}, market)
 
-                return response;
-
-        }
-        
-        return response;
+                return filledResponse(response,order);
         
     }
   
-    placeOrder(payload:CreateOrderRequest){
+    placeOrder(payload:CreateOrderRequest):EngineResponse{
     
         const market = this.marketManager.getMarket(payload.marketId); 
         const user = this.userManager.foundUser(payload.userId);
@@ -379,3 +377,33 @@ export class Engine{
 
 }
 
+
+
+function filledResponse(payload:{
+    event: "ORDER_FILLED"|"ORDER_FILLED_PARTIALLY";
+    payload: {
+        filled: bigint;
+        matchedOrders: MatchOrder[];
+        updates: {
+            bids: string[][];
+            asks: string[][];
+        };
+    }},order:Order):EngineResponse{
+
+
+        return {
+            event:payload.event,
+            payload:{
+                matchedOrders:payload.payload.matchedOrders,
+                updates:payload.payload.updates,
+                ...order,
+                filled:payload.payload.filled.toString(),
+                state:`${payload.event === "ORDER_FILLED" ? "FILLED":"PARTIALLY_FILLED"}`,
+                marketId:order.assetId,
+                qty:order.qty.toString(),
+                price:order.price.toString(),
+            }
+        }
+
+
+}

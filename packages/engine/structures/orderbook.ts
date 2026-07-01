@@ -1,7 +1,7 @@
 import  { AskTree } from "./askstree";
 import  { BidTree } from "./bidstree";
 import  { Node } from "./dll";
-import type { Id, IMarket, MatchOrder, Qty } from "@repo/types";
+import type { EngineResponse, Id, IMarket, MatchOrder, Qty } from "@repo/types";
 import { rejectOrderResponse } from "../lib/placeOrderResponses";
 import  { Order } from "./order";
 import  { PriceLevelObject } from "./priceLevelData";
@@ -267,7 +267,6 @@ export class OrderBook{
             payload:{
                 filled:order.filled,
                 updates,
-                matchedOrders
                 
             }};
     }
@@ -360,11 +359,10 @@ export class OrderBook{
             matchedOrders}};
     }
     matchMarketOrder(order:Order){
-        const { qty,price,side,status,userId} = order;
+        const { qty,price,side,userId} = order;
       
         let totalLevels = order.side === "SHORT"?this.askTree.getLength():this.bidTree.getLength()
         const matchedOrders:MatchOrder[]=[];
-        let takertax = 0n;
         let bids:string[][]=[];
         let asks:string[][]=[];
         for(let i =0; i< totalLevels;i++ ){
@@ -418,9 +416,8 @@ export class OrderBook{
                                         asks:matchedOrder.side=== "SHORT"?[[price.toString(),opSidelevelData.totalQty.toString()]]:[[]]
                                     }
                     return { 
-                        event:"ORDER_FILLED" ,
-                         payload:{
-                            tax:takertax,
+                        event:"ORDER_FILLED" as const,
+                        payload:{
                             type:order.type,
                             qty:qty,
                             state:"FILLED",
@@ -444,9 +441,8 @@ export class OrderBook{
     }
     }
         return {
-             event:"ORDER_FILLED_PARTIALLY",
-              payload:{
-                tax:takertax,
+             event:"ORDER_FILLED_PARTIALLY" as const,
+             payload:{
                 type:order.type,
                 qty:qty,
                 state:"FILLED",

@@ -31,8 +31,7 @@ export interface MatchOrder{
     side:OrderSide
 }
 export interface OrderFilledResponse extends TransmitOrder{
-    availbleBalance:string,
-    tax:string
+   
     matchedOrders:MatchOrder[],
     updates:{asks:string[][],bids:string[][]}
 }
@@ -40,7 +39,6 @@ export interface OrderFilledResponse extends TransmitOrder{
 export interface OrderAcceptedResponse extends TransmitOrder{
     message:string,
     timestamp:string,
-    totalLocked:string,
     updates:{
         asks:string[][],
         bids:string[][]

@@ -1,5 +1,4 @@
 import type { DeleteOrderResponse, CreateMarketResponse, RampUserResponse, EngineResponse, CreateUserResponse,  } from "@repo/types";
-import { liquidationEngine } from "./liquidationEngine";
 import {  MarketManager, User, UserManager, Engine} from "@repo/engine-package"
 
 const userManager = UserManager.create();
@@ -16,16 +15,16 @@ function createMarket(marketId:string):CreateMarketResponse{
 
 }
 
-function deleteOrder(orderId:string,assetId:string):DeleteOrderResponse{
+// function deleteOrder(orderId:string,assetId:string):DeleteOrderResponse{
  
-    const market = marketManager.getMarket(assetId);
-     if(!market){
-        return {success:false,error:"orderbook not found", orderId};
-    }
-    const response = market.orderbook.deleteOrder(orderId);
-    return { ...response, orderId};
+//     const market = marketManager.getMarket(assetId);
+//      if(!market){
+//         return {success:false,error:"orderbook not found", orderId};
+//     }
+//     const response = market.orderbook.deleteOrder(orderId);
+//     return { ...response, orderId};
 
-}
+// }
 
 function rampUser({userId,credit}:{userId:string,credit:bigint}):RampUserResponse{
     const response = userManager.rampUser(userId,credit);
@@ -49,11 +48,13 @@ export function engineManager(request:any):EngineResponse|null{
     request.payload = JSON.parse(request.payload);
     console.log("message from the sreams-",request);
 
+    
+
     switch(request.type){
         case "CREATE_ORDER":{
             console.log("create order is invoked");
           const payload = { ...request.payload, price:BigInt(request.payload.price),qty:BigInt(request.payload.qty),leverage:BigInt(request.payload.leverage)}        
-          return engine.placeOrder(payload)
+          return engine.placeOrder(payload);
         }
         case "CREATE_USER":{
             const {userId} = request.payload;

@@ -13,6 +13,10 @@ export class BidTree{
         prices.forEach((p)=>bidTree.prices.push(p));
         return bidTree;
     }
+
+    findBelow(price:bigint){
+        return this.prices.filter((p)=>{return (p <= price)})
+    }
     
     getLength(){
         return this.prices.length

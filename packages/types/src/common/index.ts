@@ -1,4 +1,4 @@
-export type PositionState = "OPEN"|"CLOSED"
+export type PositionState = "OPEN"|"CLOSED"|"LIQUIDATING"
 export interface Id{
     id:string;
 }
