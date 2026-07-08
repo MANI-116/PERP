@@ -33,7 +33,8 @@ export function AuthMiddleWare(
       throw new Error('expected customJwt but got string');
     }
     console.log('token data', tokenData);
-    req.userId = tokenData.userId;
+    if(!req.body) req.body ={};
+    req.body.userId = tokenData.userId;
     next();
   } catch (error) {
     console.log('error on authentication', error);

@@ -1,5 +1,5 @@
-import type { CreateMarketRequest, CreateOrderRequest, CreateUserRequest, DeleteOrderRequest, GetDepthRequest, GetEquityRequest, GetPositionsRequest, RampUserRequest } from "./request";
-import type { OrderFilledResponse, OrderFilledPartiallyResponse, OrderRejectedResponse, OrderAcceptedResponse, CreateUserResponse, CreateMarketResponse, RampUserResponse, DeleteOrderResponse, OpenPositionsResponse, ClosedPositionsResponse, GetEquityResponse, GetDepthResponse } from "./response";
+import type { CreateMarketRequest, CreateOrderRequest, CreateUserRequest, DeleteOrderRequest, GetDepthRequest, GetEquityRequest, GetPositionsRequest, RampUserRequest, RestoreSnapshotRequest } from "./request";
+import type { OrderFilledResponse, OrderFilledPartiallyResponse, OrderRejectedResponse, OrderAcceptedResponse, CreateUserResponse, CreateMarketResponse, RampUserResponse, DeleteOrderResponse, OpenPositionsResponse, ClosedPositionsResponse, GetEquityResponse, GetDepthResponse, SnapshotEvent, RestoreSnapshotResponse } from "./response";
 
 export type EngineEvent = "ORDER_FILLED_PARTIALLY"|"ORDER_FILLED"|"ORDER_ACCEPTED"|"ORDER_REJECTED";
 
@@ -9,6 +9,7 @@ export type EngineResponse =
     [K in keyof EventResponseMap]: {
       event: K;
       payload: EventResponseMap[K];
+      eventId: string;
     };
   }[keyof EventResponseMap];
 
@@ -33,7 +34,9 @@ interface EventResponseMap{
     "GET_OPEN_POSITIONS":OpenPositionsResponse,
     "GET_CLOSED_POSITIONS":ClosedPositionsResponse,
     "GET_EQUITY":GetEquityResponse,
-    "GET_DEPTH":GetDepthResponse
+    "GET_DEPTH":GetDepthResponse,
+    "SNAPSHOT":SnapshotEvent,
+    "RESTORE_SNAPSHOT":RestoreSnapshotResponse
 }
 
 
@@ -47,5 +50,6 @@ interface EngineRequestMap{
         "GET_OPEN_POSITIONS":GetPositionsRequest,
         "GET_CLOSED_POSITIONS":GetPositionsRequest,
         "GET_EQUITY":GetEquityRequest,
-        "GET_DEPTH":GetDepthRequest
+        "GET_DEPTH":GetDepthRequest,
+        "RESTORE_SNAPSHOT":RestoreSnapshotRequest
 }

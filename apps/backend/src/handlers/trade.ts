@@ -65,6 +65,8 @@ export async function onramp(req: AuthRequest, res: Response) {
       type: 'RAMP_USER',
       payload: { userId, credit: parsedData.data.credit },
     });
+    console.log("userId for ramp -",userId);
+    console.log("response from teh engine-",response);
     return res.json(response);
   } catch (error) {
     return res.status(500).json({ error: 'internal server error' });

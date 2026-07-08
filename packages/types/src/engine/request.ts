@@ -38,7 +38,14 @@ export interface CreateOrderRequest{
     leverage:bigint,
     qty:bigint,
     price:bigint,
-    orderId:string
+    orderId:string,
+    liquidationId?:string
+}
+
+export interface RestoreSnapshotRequest{
+    snapshot:string,
+    lastEventId:string,
+    liquidationCounters:Record<string,string>
 }
 
 export interface CreateOrderCommand{

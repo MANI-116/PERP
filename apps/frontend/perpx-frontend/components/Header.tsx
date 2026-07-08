@@ -1,44 +1,34 @@
-"use client"
-import Image from "next/image"
-import { UserContext } from "@/providers/userState"
-import { useContext } from "react"
-import { useRouter } from "next/navigation"
-export function Header(){
+import { cookies } from "next/headers"
+import jwt from "jsonwebtoken"
+import { HeaderClient } from "./HeaderClient";
+import type { UserInfo } from "@/providers/userState";
 
-    const {user}= useContext(UserContext);
-    const router = useRouter();
-
-    function handleLogin(){
-        router.push("/login")
-
-    }
-
-    function handleSignUp(){
-
-    }
-
-    function handleUserClick(){
-      router.push("/user")
-
-    }
-
-    function handleHomeNavigate(){
-      router.push("/");
-    }
-
-    return  <header className="flex flex-row justify-between container mt-2">
-          <div className="flex flex-row items-center text-red-600 gap-2 ml-2">
-            <Image src="/site-icon.png" width={40} height={40} alt="site logo"></Image>
-            <h2 onClick={handleHomeNavigate} className="cursor-pointer"> Contracts</h2>
-        
-          </div>
-       
-          <div>
-            {!user.isLoggedIn ? <>
-            <button onClick={handleLogin} className="p-1 mr-1 bg-blue-600 rounded-md">Log in</button>
-            <button onClick={handleSignUp}className="p-1 mr-1 bg-zinc-800 text-black rounded-md"> Sign Up</button></>:<span onClick={handleUserClick} className="cursor-pointer">{user.name}</span>}
-      
-           </div>
-        </header>
+export interface CustomJwtResponse  {
+  userId: string;
+  username: string;
 }
+
+export async function Header() {
+  const defaultUser: UserInfo = { name: "Amigo", isLoggedIn: false, userId: "0" };
+
+  const cookieStore = await cookies();
+  const passcode = process.env.JWT_PASS;
+  if (passcode === undefined) {
+    console.log('env not loaded');
+    return <HeaderClient initialUser={defaultUser} />;
+  }
+
+  const token = cookieStore.get("Authorization")?.value;
+  if (token === undefined) {
+    return <HeaderClient initialUser={defaultUser} />;
+  }
+
+  try {
+    const user = jwt.verify(token, passcode) as CustomJwtResponse;
+    return <HeaderClient initialUser={{ name: user.username, isLoggedIn: true, userId: user.userId }} />;
+  } catch (error) {
+    return <HeaderClient initialUser={defaultUser} />;
+  }
+}
+
 

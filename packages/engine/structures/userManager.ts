@@ -1,171 +1,185 @@
-import { z } from "zod";
-import { User } from "./user";
-
-
+import { z } from 'zod';
+import { User } from './user';
+import { MarketManager } from './marketManager';
+import type { TransmitPosition } from '@repo/types';
 
 const userMangerSnapshotSchema = z.array(z.string());
 
-
-
-
-export class UserManager{
-    
-    private users:Map<string,User>;
-    private static userManager:UserManager|null;
-    static reset() {
+export class UserManager {
+  private users: Map<string, User>;
+  private static userManager: UserManager | null;
+  static reset() {
     UserManager.userManager = null;
-}
-    private constructor(){
-        this.users = new Map<string,User>();
-
+  }
+  private constructor() {
+    this.users = new Map<string, User>();
+  }
+  static create() {
+    if (UserManager.userManager) {
+      return UserManager.userManager;
+    } else {
+      const manager = new UserManager();
+      UserManager.userManager = manager;
+      return UserManager.userManager;
     }
-    static create(){
-        if(UserManager.userManager){
-            return UserManager.userManager;
-        }else{
-            const manager = new UserManager();
-            UserManager.userManager = manager;
-            return UserManager.userManager;
-        }
-        
-
-    }
-    addUser(user:User){
-        const foundUser = this.users.get(user.userId);
-        if(foundUser){
-            return {success:false , error:"user found"}
-        }
-
-        this.users.set(user.userId,user);
-
-        return { success:true, message:"userCreated"}
-
-    }
-    removerUser(userId:string){
-        const foundUser = this.users.get(userId);
-        if(!foundUser){
-            return {success:false , error:"user not found"}
-        }
-
-        this.users.delete(userId);
-
-        return { success:true, message:"user deleted"}
-        
-
-    }
-    rampUser(userId:string,credit:bigint){
-
-        const user = this.users.get(userId);
-        if(user===undefined) {
-            return {success:false,message:"user not found"}
-        }
-
-        user.collateral.available += credit;
-
-        return { success:true,message:"user credited successfully",totalAvailable:user.collateral.available}
-
-    }
-    ///TODO////
-    getPositions(userId:string){
-            const user = this.users.get(userId);
-            if(user===undefined) {
-                return {success:false,message:"user not found"}
-            }
-       
-            const positions = user.positions;
-            const openPositons:Position[]=[];
-            positions.entries().forEach(([key,value])=>{
-
-            })
-          
-            
-            return {success:true,data:{positions:openPositons}}
+  }
+  addUser(user: User) {
+    const foundUser = this.users.get(user.userId);
+    if (foundUser) {
+      return { success: false, error: 'user found' };
     }
 
+    this.users.set(user.userId, user);
+    console.log('userCreated for id-', user.userId);
 
-    ///TODO////
-    getUserEquity(userId:string){
-        const user = this.users.get(userId);
-        if(user===undefined) {
-            return {success:false,message:"user not found"}
-            
-        }
-        const positions = user.positions;
-        let unrealizedPnL = 0n;
-       
-    
-
-        const equity =(user.collateral.locked +user.collateral.available+unrealizedPnL).toString();
-
-        return { success:true,data:{equity}}
-
+    return { success: true, message: 'userCreated' };
+  }
+  removerUser(userId: string) {
+    const foundUser = this.users.get(userId);
+    if (!foundUser) {
+      return { success: false, error: 'user not found' };
     }
 
-    foundUser(userId:string){
-        return this.users.get(userId) != undefined;
+    this.users.delete(userId);
 
+    return { success: true, message: 'user deleted' };
+  }
+  rampUser(userId: string, credit: bigint) {
+    const user = this.users.get(userId);
+    if (user === undefined) {
+      return { success: false, message: 'user not found' };
     }
 
-    lockAmount(userId:string,amount:bigint){
-        const user = this.users.get(userId);
-        if(!user) return false;
-        if(user.collateral.available > amount){
-            user.collateral.available -= amount;
-            user.collateral.locked += amount;
-            return true;
-        }
-        return false;
+    user.collateral.available += credit;
 
+    return {
+      success: true,
+      message: 'user credited successfully',
+      totalAvailable: user.collateral.available.toString(),
+    };
+  }
+  ///TODO////
+  getPositions(userId: string) {
+    return this._getPositionsByState(userId, undefined);
+  }
+
+  getClosedPositions(userId: string) {
+    return this._getPositionsByState(userId, 'CLOSED');
+  }
+
+  private _getPositionsByState(userId: string, filterState: string | undefined) {
+    const user = this.users.get(userId);
+    if (user === undefined) {
+      return { success: false, message: 'user not found' };
     }
-    
-    debitLockAmount(userId:string,amount:bigint){
-        const user = this.users.get(userId);
-        if(!user) return {success:false,error:"user not found",code:404};
-        if(user.collateral.locked >= amount){
-            user.collateral.locked -= amount;
-            return {success:true,message:"amount deducted"};
-        }
-        return {success:false,error:"insufficient locked balance"};
 
+    const marketManager = MarketManager.create();
+    const positions: TransmitPosition[] = [];
+    user.positions.forEach((positionId, marketId) => {
+      const market = marketManager.getMarket(marketId);
+      if (!market) return;
+      const data = market.getData(positionId, { keys: ['id', 'userId', 'qty', 'side', 'avgPrice', 'liquidationPrice', 'state', 'initialMargin', 'markPrice', 'unrealizedPnL', 'mmr'] });
+      if (!data.success || !data.data) return;
+      const p = data.data;
+      if (filterState && p.state !== filterState) return;
+      positions.push({
+        id: p.id,
+        userId: p.userId,
+        side: p.side,
+        state: p.state,
+        qty: p.qty.toString(),
+        avgPrice: p.avgPrice.toString(),
+        liquidationPrice: p.liquidationPrice.toString(),
+        initialMargin: p.initialMargin.toString(),
+        markPrice: p.markPrice.toString(),
+        unrealizedPnL: p.unrealizedPnL.toString(),
+        mmr: p.mmr.toString(),
+      });
+    });
+
+    return { success: true, data: { positions } };
+  }
+
+  ///TODO////
+  getUserEquity(userId: string) {
+    const user = this.users.get(userId);
+    if (user === undefined) {
+      return { success: false, message: 'user not found' };
     }
-    
-    getPosition(userId:string,marketId:string):{success:true,positionId:string}|{success:false,error:string}{
-        const user = this.users.get(userId);
-        if(!user) return { success:false,error:"user not found"};
-        const position = user.positions.get(marketId);
-        if(!position) return { success:false,error:"position not found"}
-        return {success:true, positionId:position};
+    let unrealizedPnL = 0n;
+
+    const marketManager = MarketManager.create();
+    user.positions.forEach((positionId, marketId) => {
+      const market = marketManager.getMarket(marketId);
+      if (!market) return;
+      const data = market.getData(positionId, { keys: ['unrealizedPnL'] });
+      if (data.success && data.data) {
+        unrealizedPnL += data.data.unrealizedPnL;
+      }
+    });
+
+    const equity = (user.collateral.locked + user.collateral.available + unrealizedPnL).toString();
+    return { success: true, data: { equity } };
+  }
+
+  foundUser(userId: string) {
+    return this.users.get(userId) != undefined;
+  }
+
+  lockAmount(userId: string, amount: bigint) {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    if (user.collateral.available > amount) {
+      user.collateral.available -= amount;
+      user.collateral.locked += amount;
+      return true;
     }
-    addPosition(userId:string,marketId:string,positionId:string,){
-        const user = this.users.get(userId);
-        if(!user) return { success:false,error:"user not found"};
-        const position = user.positions.set(marketId,positionId);
+    return false;
+  }
 
-
+  debitLockAmount(userId: string, amount: bigint) {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'user not found', code: 404 };
+    if (user.collateral.locked >= amount) {
+      user.collateral.locked -= amount;
+      return { success: true, message: 'amount deducted' };
     }
-    giveSnapshot(){
-        const usersSnapshot = [];
-        for(const user of this.users.values()){
-            usersSnapshot.push(user.giveSnapshot());
-        }
-        return JSON.stringify(usersSnapshot);
+    return { success: false, error: 'insufficient locked balance' };
+  }
 
-
+  getPosition(
+    userId: string,
+    marketId: string,
+  ): { success: true; positionId: string } | { success: false; error: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'user not found' };
+    const position = user.positions.get(marketId);
+    if (!position) return { success: false, error: 'position not found' };
+    return { success: true, positionId: position };
+  }
+  addPosition(userId: string, marketId: string, positionId: string) {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'user not found' };
+    const position = user.positions.set(marketId, positionId);
+  }
+  giveSnapshot() {
+    const usersSnapshot = [];
+    for (const user of this.users.values()) {
+      usersSnapshot.push(user.giveSnapshot());
     }
-    static createFromSnapshot(usersSnapshotString:string){
-        const parseData = userMangerSnapshotSchema.safeParse(JSON.parse(usersSnapshotString) as string[]);
-        if(!parseData.success) return null;
+    return JSON.stringify(usersSnapshot);
+  }
+  static createFromSnapshot(usersSnapshotString: string) {
+    const parseData = userMangerSnapshotSchema.safeParse(JSON.parse(usersSnapshotString) as string[]);
+    if (!parseData.success) return null;
 
-        const usersSnapshot = parseData.data;
-        const userManager = UserManager.create();
-        usersSnapshot.forEach((ss)=>{
-            const user = User.createFromSnapshot(ss);
-            if(!user) return null;
-            userManager.addUser(user);
-        })
-        return userManager;
-        
-
-
-    }
+    const usersSnapshot = parseData.data;
+    const userManager = UserManager.create();
+    usersSnapshot.forEach((ss) => {
+      const user = User.createFromSnapshot(ss);
+      if (!user) return null;
+      userManager.addUser(user);
+    });
+    return userManager;
+  }
 }

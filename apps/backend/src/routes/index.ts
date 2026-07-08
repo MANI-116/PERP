@@ -10,12 +10,16 @@ import {
   getOpenOrders,
   getAllOrders,
   getFills,
+  getMarkets,
   getDepth,
 } from '../handlers/queries.js';
 
 export function registerRoutes(app: Express) {
   // Admin
   app.post('/admin/market', createMarket);
+
+  // Markets
+  app.get('/markets', getMarkets);
 
   // Auth
   app.post('/signup', signup);
@@ -25,7 +29,7 @@ export function registerRoutes(app: Express) {
   app.post('/onramp', AuthMiddleWare, onramp);
 
   // Trading
-  app.post('/order', placeOrder);
+  app.post('/order', AuthMiddleWare, placeOrder);
   app.delete('/order', cancelOrder);
 
   // Data queries

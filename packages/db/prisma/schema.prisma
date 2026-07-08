@@ -45,6 +45,7 @@ model Order{
   state String @default("OPEN")
   slippage BigInt?
   userId String
+  createdAt DateTime @default(now())
   MakerTransactions Transaction[] @relation("taker")
   TakerTransactions Transaction[] @relation("maker")
   user User @relation(fields: [userId],references: [userId])
@@ -61,10 +62,11 @@ model Transaction{
   makerFee BigInt
   makerOrderId String
   takerOrderId String
-  MakerOrder Order @relation("maker",fields:[makerOrderId],references: [id])
-  TakerOrder Order @relation("taker",fields:[takerOrderId],references:[id])
+  MakerOrder Order @relation("maker",fields:[makerOrderId],references: [orderId])
+  TakerOrder Order @relation("taker",fields:[takerOrderId],references:[orderId])
   maker User @relation("maker",fields:[makerId],references:[userId])
   taker User @relation("taker",fields:[takerId],references:[userId])
+  createdAt DateTime @default(now())
 
 }
 
@@ -78,5 +80,21 @@ model Market{
   takerRate BigInt
   makerRate BigInt
   mmr       BigInt
+}
 
+model Snapshot{
+  id                  String   @id @default(uuid())
+  snapshot            String
+  lastEventId         BigInt
+  liquidationCounters Json
+  streamId            String
+  schemaVersion       Int      @default(1)
+  checksum            String
+  createdAt           DateTime @default(now())
+}
+
+model EngineState{
+  id                    String @id @default("singleton")
+  lastProcessedEventId  BigInt @default(0)
+  updatedAt             DateTime @updatedAt
 }

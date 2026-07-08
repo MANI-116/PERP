@@ -1,9 +1,7 @@
 import { createClient } from "redis";
 import { prisma} from "@repo/db"
-import {  type EngineResponse, type Transaction } from "@repo/types"
-// we need only receivers 
+import {  type EngineResponse } from "@repo/types"
 
-//we need to listen to the response queue ,so that we maintain orders and transactions fills
 const receiver = createClient();
 
 interface RedisResponse{   
@@ -22,20 +20,29 @@ receiver.on("error",(e)=>{
     console.log("error occured on connection to the redisstream-",e)
 })
 
-
 await receiver.connect();
 
 try {
     await receiver.xGroupCreate("response-stream","dbPoller","$",{MKSTREAM:true})
-    
 } catch (error) {
     if(error instanceof Error)
     console.log("error on creating dbPOller group-",error.name,error.message);
     else console.log("unknown error-",error);
 }
 
-while(true){
+// Load last processed event ID from PostgreSQL on startup
+let lastProcessedEventId = 0n;
+try {
+    const state = await prisma.engineState.findUnique({ where: { id: "singleton" } });
+    if (state) {
+        lastProcessedEventId = state.lastProcessedEventId;
+        console.log("dbPoller: loaded lastProcessedEventId =", lastProcessedEventId.toString());
+    }
+} catch (error) {
+    console.log("dbPoller: no existing engine state, starting fresh-", error);
+}
 
+while(true){
     const response = await receiver.xReadGroup("dbPoller","poller-1",[{key:"response-stream",id:">"}],{BLOCK:2000}) as (RedisResponse[] |null)
     if(response === null) continue;
   
@@ -43,43 +50,107 @@ while(true){
     if(stream === undefined) continue;
     for(const msg of stream.messages){
         if(msg.message.message === undefined){
-              await receiver.xAck("response-stream","dbPoller",msg.id);
-          continue;
+            await receiver.xAck("response-stream","dbPoller",msg.id);
+            continue;
         }
-        const message = JSON.parse(msg.message.message )as EngineResponse;
-        dbWorker(message)
+        const message = JSON.parse(msg.message.message) as EngineResponse;
+        
+        // Event ID idempotency guard
+        if (message.event !== "SNAPSHOT") {
+            const eventId = message.eventId ? BigInt(message.eventId) : 0n;
+            if (eventId <= lastProcessedEventId) {
+                console.log("dbPoller: skipping duplicate event", message.event, eventId.toString());
+                await receiver.xAck("response-stream","dbPoller",msg.id);
+                continue;
+            }
+        }
+
         console.log("message from the response stream-",message);
+        await dbWorker(message);
+        
+        // Update lastProcessedEventId in PostgreSQL
+        if (message.event !== "SNAPSHOT" && message.eventId) {
+            const eventId = BigInt(message.eventId);
+            lastProcessedEventId = eventId;
+            await prisma.engineState.upsert({
+                where: { id: "singleton" },
+                create: { id: "singleton", lastProcessedEventId: eventId },
+                update: { lastProcessedEventId: eventId },
+            });
+        }
+        
         await receiver.xAck("response-stream","dbPoller",msg.id);
-
     }
-
 }
 
- function  dbWorker(message:EngineResponse){
-
+async function dbWorker(message: EngineResponse) {
     switch(message.event){
         case "ORDER_FILLED_PARTIALLY":
-            updateOrder(message)
+            await updateOrder(message);
             break;        
         case "ORDER_FILLED":
-            updateOrder(message)
+            await updateOrder(message);
             break;
         case "ORDER_ACCEPTED":
-            updateOrder(message)
+            await updateOrder(message);
             break;
         case "ORDER_REJECTED":
-            updateOrder(message)
+            await updateOrder(message);
+            break;
+        case "DELETE_ORDER":
+            await deleteOrder(message);
+            break;
+        case "SNAPSHOT":
+            await storeSnapshot(message);
             break;
     }
+}
 
+async function storeSnapshot(message: EngineResponse) {
+    try {
+        if (message.event !== "SNAPSHOT") return;
+        const { snapshot, lastEventId, liquidationCounters, streamId } = message.payload;
+
+        // Extract schemaVersion + checksum from the inner snapshot JSON
+        let schemaVersion = 1;
+        let checksum = "";
+        try {
+            const parsed = JSON.parse(snapshot);
+            if (typeof parsed.schemaVersion === "number") schemaVersion = parsed.schemaVersion;
+            if (typeof parsed.checksum === "string") checksum = parsed.checksum;
+        } catch {}
+
+        await prisma.snapshot.create({
+            data: {
+                snapshot,
+                lastEventId: BigInt(lastEventId),
+                liquidationCounters: liquidationCounters as Record<string, string>,
+                streamId,
+                schemaVersion,
+                checksum,
+            },
+        });
+        // Prune old snapshots, keep latest 10
+        const excess = await prisma.snapshot.findMany({
+            orderBy: { createdAt: "desc" },
+            skip: 10,
+            select: { id: true },
+        });
+        if (excess.length > 0) {
+            await prisma.snapshot.deleteMany({
+                where: { id: { in: excess.map((s: { id: string }) => s.id) } },
+            });
+        }
+        console.log("dbPoller: stored snapshot v" + schemaVersion + " at event", lastEventId);
+    } catch (error) {
+        console.log("error on storing snapshot-", error);
+    }
 }
 
 async function updateOrder(orderDetails:EngineResponse){
     try {
     if(orderDetails.event === "ORDER_ACCEPTED"){
-      //create new order
          const { side,qty, type, marketId,orderId,slippage,price,userId,state} = orderDetails.payload;
-            //no need to check wether there is an existing order because postgress make sure of it due to the unique constraint on orderId
             const response = await prisma.order.create({
                 data:{
                     side,
@@ -91,17 +162,12 @@ async function updateOrder(orderDetails:EngineResponse){
                     orderId,
                     filled:0n,
                     state
-  
                 }
             })
-
             return;
-        
         }
         if(orderDetails.event === "ORDER_REJECTED"){
-            //create an order with status closed:
             const { side,qty, type, marketId,orderId,slippage,price,userId,state} = orderDetails.payload;
-            //no need to check wether there is an existing order because postgress make sure of it due to the unique constraint on orderId
             const response = await prisma.order.create({
                 data:{
                     side,
@@ -113,24 +179,15 @@ async function updateOrder(orderDetails:EngineResponse){
                     userId,
                     orderId,
                     state:"CLOSED"
-  
                 }
             })
-
             return;
         }
         
         if(orderDetails.event === "ORDER_FILLED" || orderDetails.event === "ORDER_FILLED_PARTIALLY"){
-            //update the existing order with filled and status and also create if not existed
-            //create fills or transactions
-
-            //get the transactions:
             const {orderId,filled,price,matchedOrders,userId,side,type,marketId,qty,tax}= orderDetails.payload;
-
-            //check order exists or not:
             const order = await prisma.order.findUnique({where:{orderId}});
             if(!order){
-                //create order:
                 const response = await prisma.order.create({
                 data:{
                     side,
@@ -142,23 +199,18 @@ async function updateOrder(orderDetails:EngineResponse){
                     orderId,
                     filled:BigInt(filled),
                     state:`${BigInt(qty) === BigInt(filled) ? "CLOSED":"FILLED"}`
-  
                 }
             })
-
             }else{
-
                 await prisma.order.update({where:{orderId},
                 data:{
                     filled:{increment:BigInt(filled)},
                     state:`${order.qty === order.filled + BigInt(filled) ? "CLOSED" : "FILLED"}`
                 }})
-
                 console.log("updated the order")
             }
 
             for(const matchedOrder of matchedOrders){
-                //update the order
                 const order = await prisma.order.findUnique({where:{orderId:matchedOrder.orderId}});
                 if(!order) throw new Error("order matched on the non existing order");
                 
@@ -169,9 +221,7 @@ async function updateOrder(orderDetails:EngineResponse){
                         state:`${order.qty=== order.filled+BigInt(matchedOrder.qtyTransfered) ? "CLOSED":"FILLED" }`
                     }
                 })
-
                 console.log("updated the order-",updateOrder);
-                //make the fill
                 const response = await prisma.transaction.create({
                     data:{
                         takerId:userId,
@@ -187,18 +237,27 @@ async function updateOrder(orderDetails:EngineResponse){
                         id:true
                     }
                 });
-
                 console.log("transaction created:-",response);
             }
-
             return;
         }
-        
     } catch (error) {
         console.log("error occurred on creating the order ",error);
-        
     }
+}
 
+async function deleteOrder(orderDetails: { event: string; payload: { success: boolean; orderId: string } }) {
+    try {
+        const { success, orderId } = orderDetails.payload;
+        if(!success) return;
+        await prisma.order.update({
+            where:{orderId},
+            data:{state:"CLOSED"}
+        });
+        console.log("deleted the order-",orderId);
+    } catch (error) {
+        console.log("error occurred on deleting the order ",error);
+    }
 }
 
 

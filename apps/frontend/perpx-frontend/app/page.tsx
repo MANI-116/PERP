@@ -1,83 +1,23 @@
 "use client"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/config";
 
-export default function Home() {
-  const router = useRouter();
- 
-  return (
-      <main className=" ">
+type BackendMarket = {
+  id: string;
+  name: string;
+  symbol: string;
+  slug: string;
+  scale: string;
+  markPrice: string;
+  takerRate: string;
+  makerRate: string;
+  mmr: string;
+};
 
-        <div className="bg-zinc-800 rounded-md container m-2 p-4 text-zinc-500 ">
-          <div className="flex flex-row gap-x-2 mb-2">
-      
-            <div><h2>Futures</h2></div>
-            
-          </div>
-          <div className=" flex flex-row items-center border-b-1 gap-x-1 pb-3 text-zinc-200 ">
-            <div className="flex-2">
-              <h3>Name</h3>
-            </div>
-            <div className="flex-1">
-              <h3> Price</h3> 
-            </div>
-            <div className="flex-1">
-              <h3>24h Volume</h3>
-            </div>
-            <div className="flex-1">
-              <h3>Open Interest</h3>
-            </div>
-            <div className="flex-1">
-              <h3>24h Change</h3>
-            </div>
-          </div>
-
-
-          {
-            markets.map((m)=>{
-
-              return  <motion.div
-              whileHover={{
-                scale:1.05,
-                y:-10
-              }}
-              transition={{type:"spring", duration:0.3}}
-              onClick={()=>{router.push(`/trade/${m.symbol}`)}}
-              className=" flex flex-row items-center p-1 rounded-md border-b-1 gap-x-1 mt-1 cursor-pointer hover:bg-zinc-900">
-            <div className="flex-2">
-              <div className="flex flex-row items-center gap-x-1">
-                <Image src={m.logo} width={25} height={25} className="rounded-full" alt='coin logo' />
-                <span>{m.name}</span>
-              </div>
-              
-            </div>
-            <div className="flex-1">
-              <span>{m.price}</span>
-            </div>
-            <div className="flex-1">
-              <span>{m.volume24h}</span>
-            </div>
-            <div className="flex-1">
-              <span>{m.openInterest}</span>
-            </div>
-            <div className={"flex-1 "+`${m.change24h < 0 ? "text-red-800":"text-green-800"}`}>
-              <span>{m.change24h}</span>
-            </div>
-          </motion.div>
-
-            })
-          }
-        </div>
-      
-       
-      </main>
-  
-  );
-}
-
-
-type Market = {
+type MarketDisplay = {
   symbol: string;
   name: string;
   logo: string;
@@ -87,59 +27,79 @@ type Market = {
   change24h: number;
 };
 
-const markets: Market[] = [
-  {
-    symbol: "BTC-PERP",
-    name: "Bitcoin",
-    logo: "/coins/btc.png",
-    price: 105432.12,
-    volume24h: "$2.4B",
-    openInterest: "$1.8B",
-    change24h: 3.42,
-  },
-  {
-    symbol: "ETH-PERP",
-    name: "Ethereum",
-    logo: "/coins/eth.png",
-    price: 5876.45,
-    volume24h: "$1.1B",
-    openInterest: "$920M",
-    change24h: 2.18,
-  },
-  {
-    symbol: "SOL-PERP",
-    name: "Solana",
-    logo: "/coins/sol.png",
-    price: 243.87,
-    volume24h: "$540M",
-    openInterest: "$380M",
-    change24h: -1.24,
-  },
-  {
-    symbol: "XRP-PERP",
-    name: "XRP",
-    logo: "/coins/xrp.png",
-    price: 2.84,
-    volume24h: "$310M",
-    openInterest: "$240M",
-    change24h: 5.63,
-  },
-  {
-    symbol: "DOGE-PERP",
-    name: "Dogecoin",
-    logo: "/coins/doge.png",
-    price: 0.42,
-    volume24h: "$180M",
-    openInterest: "$120M",
-    change24h: -2.91,
-  },
-  {
-    symbol: "BNB-PERP",
-    name: "BNB",
-    logo: "/coins/bnb.png",
-    price: 921.33,
-    volume24h: "$430M",
-    openInterest: "$290M",
-    change24h: 1.11,
-  },
-];
+const logos: Record<string, string> = {
+  "BTC-PERP": "/coins/btc.png",
+  "ETH-PERP": "/coins/eth.png",
+  "SOL-PERP": "/coins/sol.png",
+  "XRP-PERP": "/coins/xrp.png",
+  "DOGE-PERP": "/coins/doge.png",
+  "BNB-PERP": "/coins/bnb.png",
+};
+
+export default function Home() {
+  const router = useRouter();
+  const [markets, setMarkets] = useState<MarketDisplay[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/markets`)
+      .then((r) => r.json())
+      .then((data) => {
+        const parsed: MarketDisplay[] = data.markets.map((m: BackendMarket) => {
+          const scale = Number(m.scale);
+          const price = Number(m.markPrice) / scale;
+          return {
+            symbol: m.symbol,
+            name: m.name,
+            logo: logos[m.symbol] ?? "/coins/btc.png",
+            price,
+            volume24h: "—",
+            openInterest: "—",
+            change24h: 0,
+          };
+        });
+        setMarkets(parsed);
+      })
+      .catch(console.error);
+  }, []);
+ 
+  return (
+      <main>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg container mx-2 p-4">
+          <div className="flex flex-row gap-x-2 mb-3">
+            <div><h2 className="text-lg font-semibold text-zinc-200">Futures</h2></div>
+          </div>
+          <div className="flex flex-row items-center border-b border-zinc-800 gap-x-1 pb-3 text-zinc-500 text-xs font-medium uppercase tracking-wider">
+            <div className="flex-[2]"><h3>Name</h3></div>
+            <div className="flex-1"><h3>Price</h3></div>
+            <div className="flex-1"><h3>24h Volume</h3></div>
+            <div className="flex-1"><h3>Open Interest</h3></div>
+            <div className="flex-1"><h3>24h Change</h3></div>
+          </div>
+
+          {markets.map((m) => (
+            <motion.div
+              whileHover={{ scale: 1.01, x: 4 }}
+              transition={{ type: "spring", duration: 0.25 }}
+              key={m.symbol}
+              onClick={() => router.push(`/trade/${m.symbol}`)}
+              className="flex flex-row items-center p-2.5 border-b border-zinc-800 gap-x-1 cursor-pointer hover:bg-zinc-800/50 transition-colors rounded"
+            >
+              <div className="flex-[2]">
+                <div className="flex flex-row items-center gap-x-2">
+                  <Image src={m.logo} width={24} height={24} className="rounded-full" alt="" />
+                  <span className="text-sm font-medium text-zinc-200">{m.name}</span>
+                </div>
+              </div>
+              <div className="flex-1 text-sm text-zinc-300">{m.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div className="flex-1 text-sm text-zinc-500">{m.volume24h}</div>
+              <div className="flex-1 text-sm text-zinc-500">{m.openInterest}</div>
+              <div className={`flex-1 text-sm ${m.change24h < 0 ? "text-red-500" : "text-green-500"}`}>
+                <span>{m.change24h}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </main>
+  
+  );
+}

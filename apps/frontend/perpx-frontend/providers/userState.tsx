@@ -1,16 +1,25 @@
-"use client"
+"use client";
 
-import { createContext,useState } from "react";
+import { createContext, useState } from "react";
 
-const defaultUser = { name:"Amigo", isLoggedIn:false}
-type UserContext = {name:string,isLoggedIn:boolean}
-export const UserContext = createContext<{user:UserContext,setUser:(user:UserContext)=>void}>({user:defaultUser,setUser:(defaultUser)=>{}});
+export type UserInfo = { name: string; isLoggedIn: boolean; userId: string };
 
-export function Provider({children}:React.PropsWithChildren){
+const defaultUser: UserInfo = { name: "Amigo", isLoggedIn: false, userId: "0" };
 
-    const [user,setUser] = useState({name:"amigo",isLoggedIn:false})
+export const UserContext = createContext<{
+  user: UserInfo;
+  setUser: (user: UserInfo) => void;
+}>({ user: defaultUser, setUser: () => {} });
 
-    return <UserContext.Provider value={{user,setUser}}>
-        {children}
+export function Provider({
+  children,
+  initialUser,
+}: React.PropsWithChildren<{ initialUser?: UserInfo }>) {
+  const [user, setUser] = useState<UserInfo>(initialUser ?? defaultUser);
+
+  return (
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}
     </UserContext.Provider>
+  );
 }

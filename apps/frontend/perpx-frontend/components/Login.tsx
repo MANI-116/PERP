@@ -1,77 +1,106 @@
-"use client"
-import Image from "next/image"
-import React,{ useState, useContext} from "react"
+"use client";
+
+import Image from "next/image";
+import { useState, useContext } from "react";
 import { UserContext } from "@/providers/userState";
 import { useRouter } from "next/navigation";
-export function Login(){
-    const [email,setEmail] = useState<string>("");
-    const [password,setPassword] = useState<string>("");
+import { API_BASE } from "@/lib/config";
 
-    const userContext = useContext(UserContext)
+export function Login() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
 
-    const router = useRouter();
+  const { setUser } = useContext(UserContext);
+  const router = useRouter();
 
-    async function handleSubmit(e:React.SubmitEvent<HTMLFormElement>){
-        e.preventDefault();
-        try {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErrors([]);
 
-            // const response = await fetch("http://localhost:3000/signup",{
-            //     method:"POST",
-            //     headers:{
-            //         "Content-Type":"application/json",
-            //         "Access-Control-Allow-Origin":"*",
-            //     },
-            //     body:JSON.stringify({
-            //         email,
-            //         password
-            //     })
-            // })
-            // console.log(response)
-            // const jsonData = await response.json()
-            // console.log(jsonData);
-            
-            userContext.setUser({name:"mani",isLoggedIn:true})
+    try {
+      const res = await fetch(`${API_BASE}/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
+      });
 
-            router.replace("/")
-            
-        } catch (error) {
-            console.log("error on seding error");
-            console.log(error);
+      const data = await res.json();
+      console.log("data from the siginin-",data);
+
+      if (!res.ok) {
+        const msgs: string[] = [];
+
+        if (data.error?.issues) {
+          for (const issue of data.error.issues) {
+            msgs.push(`${issue.path.join(".")}: ${issue.message}`);
+          }
+        } else if (data.message) {
+          msgs.push(data.message);
+        } else {
+          msgs.push("Login failed");
         }
-            
-        
 
+        setErrors(msgs);
+        return;
+      }
+
+      setUser({ name: data.username, isLoggedIn: true , userId:data.userId});
+      router.replace("/");
+    } catch {
+      setErrors(["Could not connect to server"]);
     }
-    function handleEmailChange(e:React.ChangeEvent<HTMLInputElement>){
-        setEmail(e.target.value);
-        console.log(e.target.value);
+  }
 
-    }
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-80 shadow-xl">
+      <div className="flex flex-col items-center mb-4">
+        <Image src="/site-icon.png" width={56} height={56} alt="logo" />
+        <h1 className="text-lg font-semibold mt-2">Log in</h1>
+      </div>
 
-    function handlePasswordChange(e:React.ChangeEvent<HTMLInputElement>){
-        setPassword(e.target.value);
-        console.log(e.target.value);
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="bg-black/40 border border-zinc-800 rounded-md p-2.5 text-sm focus:outline-none focus:border-zinc-600 transition-colors"
+          required
+        />
 
-    }
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="bg-black/40 border border-zinc-800 rounded-md p-2.5 text-sm focus:outline-none focus:border-zinc-600 transition-colors"
+          required
+        />
 
-    return <div className="bg-zinc-800 rounded-md p-4  " >
+        {errors.length > 0 && (
+          <ul className="text-red-400 text-sm space-y-0.5">
+            {errors.map((msg, i) => (
+              <li key={i}>{msg}</li>
+            ))}
+          </ul>
+        )}
 
-        <div className="flex flex-col items-center mb-2">
-            <Image src="/site-icon.png" width={60} height={60} alt="nothing brother"/> 
-            <h1>Log in</h1>
-        </div>
-
-        <form onSubmit={(e)=>handleSubmit(e)} className="flex flex-col">
-
-        <input type="text" placeholder="Email" onChange={(e)=>handleEmailChange(e)} className="bg-black/40  rounded-sm p-2 mb-2"/>
-
-        <input type="password" placeholder="Password" onChange={(e)=>handlePasswordChange(e)} className="bg-black/40  rounded-sm p-2 mb-2"/>
-        
-
-        <button className="bg-blue-600 text-black p-1 rounded-sm mt-2 hover:bg-blue-800">
-          SignUp
+        <button className="bg-zinc-200 hover:bg-white text-black font-medium py-2.5 rounded-md mt-1 transition-colors">
+          Log in
         </button>
-        </form>  
-       </div>     
-      
+      </form>
+
+      <p className="text-zinc-500 text-sm text-center mt-4">
+        No account?{" "}
+        <span
+          className="text-zinc-300 cursor-pointer hover:text-white transition-colors"
+          onClick={() => router.push("/signup")}
+        >
+          Sign up
+        </span>
+      </p>
+    </div>
+  );
 }

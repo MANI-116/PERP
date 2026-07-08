@@ -12,6 +12,7 @@
   "dependencies": {
     "redis": "^6.0.0",
     "ws": "^8.21.0",
-    "@repo/types":"*"
+    "@repo/types":"*",
+    "@repo/db":"*"
   }
 }

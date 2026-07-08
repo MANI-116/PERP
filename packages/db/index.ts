@@ -1,1 +1,1 @@
-export {prisma} from "./db.ts"
+export {prisma} from "./db"

@@ -9,6 +9,11 @@ export const signUpSchema = z.object({
   password: z.string().min(6).max(30),
 });
 
+export const signInSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
 export const createMarketSchema = z.object({
   name: z.string().min(2),
   symbol: z.string(),
@@ -49,5 +54,5 @@ export const rampUserSchema = z.object({
     .string()
     .regex(/^\d+$/)
     .transform((p) => BigInt(p)),
-  userId: z.string().min(1),
+  
 });
