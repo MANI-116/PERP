@@ -1,0 +1,409 @@
+# flyctl launch added from .gitignore
+# dependencies (bun install)
+**/node_modules
+
+# output
+**/out
+**/dist
+**/*.tgz
+
+# code coverage
+**/coverage
+**/*.lcov
+
+# logs
+**/logs
+**/_.log
+**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+**/.env
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/.env.local
+
+# caches
+**/.eslintcache
+**/.cache
+**/*.tsbuildinfo
+
+# next.js build artifacts
+**/.next
+
+# IntelliJ based IDEs
+**/.idea
+
+# Finder (MacOS) folder config
+**/.DS_Store
+**/.commandcode
+
+# flyctl launch added from apps/backend/.gitignore
+# dependencies (bun install)
+apps/backend/**/node_modules
+
+# output
+apps/backend/**/out
+apps/backend/**/dist
+apps/backend/**/*.tgz
+
+# code coverage
+apps/backend/**/coverage
+apps/backend/**/*.lcov
+
+# logs
+apps/backend/**/logs
+apps/backend/**/_.log
+apps/backend/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/backend/**/.env
+apps/backend/**/.env.development.local
+apps/backend/**/.env.test.local
+apps/backend/**/.env.production.local
+apps/backend/**/.env.local
+
+# caches
+apps/backend/**/.eslintcache
+apps/backend/**/.cache
+apps/backend/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/backend/**/.idea
+
+# Finder (MacOS) folder config
+apps/backend/**/.DS_Store
+
+# flyctl launch added from apps/dbPoller/.gitignore
+# dependencies (bun install)
+apps/dbPoller/**/node_modules
+
+# output
+apps/dbPoller/**/out
+apps/dbPoller/**/dist
+apps/dbPoller/**/*.tgz
+
+# code coverage
+apps/dbPoller/**/coverage
+apps/dbPoller/**/*.lcov
+
+# logs
+apps/dbPoller/**/logs
+apps/dbPoller/**/_.log
+apps/dbPoller/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/dbPoller/**/.env
+apps/dbPoller/**/.env.development.local
+apps/dbPoller/**/.env.test.local
+apps/dbPoller/**/.env.production.local
+apps/dbPoller/**/.env.local
+
+# caches
+apps/dbPoller/**/.eslintcache
+apps/dbPoller/**/.cache
+apps/dbPoller/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/dbPoller/**/.idea
+
+# Finder (MacOS) folder config
+apps/dbPoller/**/.DS_Store
+
+# flyctl launch added from apps/engine/.gitignore
+# dependencies (bun install)
+apps/engine/**/node_modules
+
+# output
+apps/engine/**/out
+apps/engine/**/dist
+apps/engine/**/*.tgz
+
+# code coverage
+apps/engine/**/coverage
+apps/engine/**/*.lcov
+
+# logs
+apps/engine/**/logs
+apps/engine/**/_.log
+apps/engine/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/engine/**/.env
+apps/engine/**/.env.development.local
+apps/engine/**/.env.test.local
+apps/engine/**/.env.production.local
+apps/engine/**/.env.local
+
+# caches
+apps/engine/**/.eslintcache
+apps/engine/**/.cache
+apps/engine/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/engine/**/.idea
+
+# Finder (MacOS) folder config
+apps/engine/**/.DS_Store
+
+# flyctl launch added from apps/frontend/perpx-frontend/.gitignore
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+apps/frontend/perpx-frontend/node_modules
+apps/frontend/perpx-frontend/.pnp
+apps/frontend/perpx-frontend/**/.pnp.*
+apps/frontend/perpx-frontend/**/.yarn/*
+!apps/frontend/perpx-frontend/**/.yarn/patches
+!apps/frontend/perpx-frontend/**/.yarn/plugins
+!apps/frontend/perpx-frontend/**/.yarn/releases
+!apps/frontend/perpx-frontend/**/.yarn/versions
+
+# testing
+apps/frontend/perpx-frontend/coverage
+
+# next.js
+apps/frontend/perpx-frontend/.next
+apps/frontend/perpx-frontend/out
+
+# production
+apps/frontend/perpx-frontend/build
+
+# misc
+apps/frontend/perpx-frontend/**/.DS_Store
+apps/frontend/perpx-frontend/**/*.pem
+
+# debug
+apps/frontend/perpx-frontend/**/npm-debug.log*
+apps/frontend/perpx-frontend/**/yarn-debug.log*
+apps/frontend/perpx-frontend/**/yarn-error.log*
+apps/frontend/perpx-frontend/**/.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+apps/frontend/perpx-frontend/**/.env*
+
+# vercel
+apps/frontend/perpx-frontend/**/.vercel
+
+# typescript
+apps/frontend/perpx-frontend/**/*.tsbuildinfo
+apps/frontend/perpx-frontend/**/next-env.d.ts
+
+# flyctl launch added from apps/markPricePoller/.gitignore
+# dependencies (bun install)
+apps/markPricePoller/**/node_modules
+
+# output
+apps/markPricePoller/**/out
+apps/markPricePoller/**/dist
+apps/markPricePoller/**/*.tgz
+
+# code coverage
+apps/markPricePoller/**/coverage
+apps/markPricePoller/**/*.lcov
+
+# logs
+apps/markPricePoller/**/logs
+apps/markPricePoller/**/_.log
+apps/markPricePoller/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/markPricePoller/**/.env
+apps/markPricePoller/**/.env.development.local
+apps/markPricePoller/**/.env.test.local
+apps/markPricePoller/**/.env.production.local
+apps/markPricePoller/**/.env.local
+
+# caches
+apps/markPricePoller/**/.eslintcache
+apps/markPricePoller/**/.cache
+apps/markPricePoller/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/markPricePoller/**/.idea
+
+# Finder (MacOS) folder config
+apps/markPricePoller/**/.DS_Store
+
+# flyctl launch added from apps/tests/.gitignore
+# dependencies (bun install)
+apps/tests/**/node_modules
+
+# output
+apps/tests/**/out
+apps/tests/**/dist
+apps/tests/**/*.tgz
+
+# code coverage
+apps/tests/**/coverage
+apps/tests/**/*.lcov
+
+# logs
+apps/tests/**/logs
+apps/tests/**/_.log
+apps/tests/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/tests/**/.env
+apps/tests/**/.env.development.local
+apps/tests/**/.env.test.local
+apps/tests/**/.env.production.local
+apps/tests/**/.env.local
+
+# caches
+apps/tests/**/.eslintcache
+apps/tests/**/.cache
+apps/tests/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/tests/**/.idea
+
+# Finder (MacOS) folder config
+apps/tests/**/.DS_Store
+
+# flyctl launch added from apps/wsServer/.gitignore
+# dependencies (bun install)
+apps/wsServer/**/node_modules
+
+# output
+apps/wsServer/**/out
+apps/wsServer/**/dist
+apps/wsServer/**/*.tgz
+
+# code coverage
+apps/wsServer/**/coverage
+apps/wsServer/**/*.lcov
+
+# logs
+apps/wsServer/**/logs
+apps/wsServer/**/_.log
+apps/wsServer/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+apps/wsServer/**/.env
+apps/wsServer/**/.env.development.local
+apps/wsServer/**/.env.test.local
+apps/wsServer/**/.env.production.local
+apps/wsServer/**/.env.local
+
+# caches
+apps/wsServer/**/.eslintcache
+apps/wsServer/**/.cache
+apps/wsServer/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+apps/wsServer/**/.idea
+
+# Finder (MacOS) folder config
+apps/wsServer/**/.DS_Store
+
+# flyctl launch added from packages/db/.gitignore
+# dependencies (bun install)
+packages/db/**/node_modules
+
+# output
+packages/db/**/out
+packages/db/**/dist
+packages/db/**/*.tgz
+
+# code coverage
+packages/db/**/coverage
+packages/db/**/*.lcov
+
+# logs
+packages/db/**/logs
+packages/db/**/_.log
+packages/db/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+packages/db/**/.env
+packages/db/**/.env.development.local
+packages/db/**/.env.test.local
+packages/db/**/.env.production.local
+packages/db/**/.env.local
+
+# caches
+packages/db/**/.eslintcache
+packages/db/**/.cache
+packages/db/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+packages/db/**/.idea
+
+# Finder (MacOS) folder config
+packages/db/**/.DS_Store
+
+packages/db/generated/prisma
+
+# flyctl launch added from packages/engine/.gitignore
+# dependencies (bun install)
+packages/engine/**/node_modules
+
+# output
+packages/engine/**/out
+packages/engine/**/dist
+packages/engine/**/*.tgz
+
+# code coverage
+packages/engine/**/coverage
+packages/engine/**/*.lcov
+
+# logs
+packages/engine/**/logs
+packages/engine/**/_.log
+packages/engine/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+packages/engine/**/.env
+packages/engine/**/.env.development.local
+packages/engine/**/.env.test.local
+packages/engine/**/.env.production.local
+packages/engine/**/.env.local
+
+# caches
+packages/engine/**/.eslintcache
+packages/engine/**/.cache
+packages/engine/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+packages/engine/**/.idea
+
+# Finder (MacOS) folder config
+packages/engine/**/.DS_Store
+
+# flyctl launch added from packages/types/.gitignore
+# dependencies (bun install)
+packages/types/**/node_modules
+
+# output
+packages/types/**/out
+packages/types/**/dist
+packages/types/**/*.tgz
+
+# code coverage
+packages/types/**/coverage
+packages/types/**/*.lcov
+
+# logs
+packages/types/**/logs
+packages/types/**/_.log
+packages/types/**/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+packages/types/**/.env
+packages/types/**/.env.development.local
+packages/types/**/.env.test.local
+packages/types/**/.env.production.local
+packages/types/**/.env.local
+
+# caches
+packages/types/**/.eslintcache
+packages/types/**/.cache
+packages/types/**/*.tsbuildinfo
+
+# IntelliJ based IDEs
+packages/types/**/.idea
+
+# Finder (MacOS) folder config
+packages/types/**/.DS_Store
+fly.toml

@@ -1,17 +1,13 @@
 #!/bin/sh
-# docker-entrypoint.sh — starts all backend services in a single container
-# Uses Bun as the process launcher for all 5 services.
-
 set -e
 
 echo "Starting PerpX services..."
 
-# Generate Prisma client if needed
+# Generate Prisma client at runtime using the injected DATABASE_URL secret
 cd /app/packages/db
-bun run prisma generate 2>/dev/null || true
+bunx prisma generate > /dev/null 2>&1
 cd /app
 
-# Start services in background
 bun run apps/markPricePoller/index.ts &
 echo "[OK] markPricePoller"
 
@@ -24,5 +20,4 @@ echo "[OK] dbPoller"
 bun run apps/wsServer/index.ts &
 echo "[OK] wsServer"
 
-# Start backend in foreground (container stays alive)
 exec bun run apps/backend/index.ts
