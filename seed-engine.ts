@@ -5,7 +5,8 @@ function genId() {
   return `seed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const sender = createClient();
+const redisUrl = process.env.REDIS_URL ?? undefined;
+const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
 await sender.connect();
 
 // Read markets from DB

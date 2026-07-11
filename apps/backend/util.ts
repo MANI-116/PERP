@@ -143,8 +143,9 @@ export class ResponseManager {
   }
 
   public static async create() {
-    const receiver = createClient();
-    const sender = createClient();
+    const redisUrl = process.env.REDIS_URL ?? undefined;
+    const receiver = createClient(redisUrl ? { url: redisUrl } : undefined);
+    const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
 
     receiver.on('error', (error) => {
       console.log('error on receiver connecting to redis-', error);

@@ -1,0 +1,44 @@
+# fly.toml — Fly.io deployment for backend services
+# Requires: PostgreSQL (Neon/Supabase), Redis (Upstash)
+#
+# Set secrets:
+#   fly secrets set DATABASE_URL="postgresql://..."
+#   fly secrets set REDIS_URL="redis://..."
+#   fly secrets set JWT_PASS="<random-secret>"
+#   fly secrets set BINANCE_URL="wss://fstream.binance.com/ws/!markPrice@arr@1s"
+
+app = "perpx-backend"
+
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[services]]
+  port = 8080
+  protocol = "tcp"
+  internal_port = 8080
+  processes = ["app"]
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 50
+
+[env]
+  PORT = "3001"
+  NODE_ENV = "production"
+
+[checks]
+  [checks.health]
+    type = "http"
+    path = "/markets"
+    interval = "30s"
+    timeout = "5s"

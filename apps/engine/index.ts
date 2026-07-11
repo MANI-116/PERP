@@ -3,8 +3,9 @@ import { createClient } from 'redis';
 import { engineManager } from './engineManager';
 import { Engine } from '@repo/engine-package';
 
-const receiver = createClient();
-export const sender = createClient();
+const redisUrl = process.env.REDIS_URL ?? undefined;
+const receiver = createClient(redisUrl ? { url: redisUrl } : undefined);
+export const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
 
 let lastProcessedStreamId = '0';
 let messageCount = 0;
