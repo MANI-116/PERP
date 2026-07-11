@@ -4,13 +4,9 @@ WORKDIR /app
 # Install deps (cached layer)
 COPY package.json bun.lock ./
 COPY packages/ packages/
-COPY apps/backend/ apps/backend/
-COPY apps/engine/ apps/engine/
-COPY apps/wsServer/ apps/wsServer/
-COPY apps/dbPoller/ apps/dbPoller/
-COPY apps/markPricePoller/ apps/markPricePoller/
+COPY apps/ apps/
 
-RUN bun install --production
+RUN bun install
 
 # ── Runtime ─────────────────────────────────────────────
 FROM oven/bun:1.3 AS runtime
