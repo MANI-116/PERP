@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd ../../.. && npx bun install --frozen-lockfile && cd packages/db && npx bun prisma generate && cd ../apps/frontend/perpx-frontend && npx bun next build",
+  "buildCommand": "cd ../../.. && npx bun install --frozen-lockfile && cd apps/frontend/perpx-frontend && npx bun next build",
   "outputDirectory": ".next",
   "framework": "nextjs"
 }
