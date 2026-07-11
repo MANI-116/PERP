@@ -10,7 +10,7 @@ COPY apps/wsServer/ apps/wsServer/
 COPY apps/dbPoller/ apps/dbPoller/
 COPY apps/markPricePoller/ apps/markPricePoller/
 
-RUN bun install --frozen-lockfile --production
+RUN bun install --production
 
 # ── Runtime ─────────────────────────────────────────────
 FROM oven/bun:1.3 AS runtime
