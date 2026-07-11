@@ -4,6 +4,8 @@ import { Orderbook } from "@/components/Orderbook";
 import { OrderForm } from "@/components/OrderrForm";
 import { Stakes } from "@/components/Stakes";
 
+export const dynamic = "force-dynamic";
+
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
 
 async function getMarket(symbol: string) {

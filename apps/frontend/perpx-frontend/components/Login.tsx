@@ -47,7 +47,7 @@ export function Login() {
       }
 
       setUser({ name: data.username, isLoggedIn: true , userId:data.userId});
-      router.replace("/");
+      window.location.href = "/";
     } catch {
       setErrors(["Could not connect to server"]);
     }
