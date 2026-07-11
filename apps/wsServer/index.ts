@@ -5,7 +5,7 @@ import { type EngineResponse, type RedisResponse} from "@repo/types"
 import { prisma } from "@repo/db"
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl } : undefined);
+const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
 receiver.on("error",(error)=>{
     console.log("error on connceting to the receiver-",error);
 })

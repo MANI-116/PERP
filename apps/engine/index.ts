@@ -4,8 +4,8 @@ import { engineManager } from './engineManager';
 import { Engine } from '@repo/engine-package';
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl } : undefined);
-export const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
+const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+export const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
 
 let lastProcessedStreamId = '0';
 let messageCount = 0;

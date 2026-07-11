@@ -20,7 +20,7 @@ async function main() {
   console.log("recovery: found snapshot from", snapshot.createdAt, "at streamId", snapshot.streamId);
 
   const redisUrl = process.env.REDIS_URL ?? undefined;
-  const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
+  const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
   sender.on("error", (error) => {
     console.log("recovery: error on connecting to redis-", error);
   });

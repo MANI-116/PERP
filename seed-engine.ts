@@ -6,7 +6,7 @@ function genId() {
 }
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const sender = createClient(redisUrl ? { url: redisUrl } : undefined);
+const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
 await sender.connect();
 
 // Read markets from DB

@@ -3,7 +3,7 @@ import { prisma} from "@repo/db"
 import {  type EngineResponse } from "@repo/types"
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl } : undefined);
+const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
 
 interface RedisResponse{   
     name: string;
