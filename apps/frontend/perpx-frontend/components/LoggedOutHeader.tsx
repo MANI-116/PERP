@@ -17,7 +17,7 @@ export function LoggedOutHeader(){
       router.push("/");
     }
 
-  return <header className="flex flex-row justify-between container mt-2">
+  return <header className="flex flex-row justify-between page-wrapper mt-2">
           <div className="flex flex-row items-center text-red-500 gap-2 ml-2">
             <Image src="/site-icon.png" width={40} height={40} alt="site logo"></Image>
             <h2 onClick={handleHomeNavigate} className="cursor-pointer font-semibold"> Contracts</h2>

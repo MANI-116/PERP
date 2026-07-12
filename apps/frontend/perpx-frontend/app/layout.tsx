@@ -47,7 +47,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-black/95 text-white`}
     >
       <Provider initialUser={initialUser}>
-      <body className="min-h-full flex flex-col "> <Header />{children}</body>
+      <body className="min-h-full flex flex-col"> <Header /><main className="page-wrapper w-full">{children}</main></body>
       </Provider>
     </html>
   );

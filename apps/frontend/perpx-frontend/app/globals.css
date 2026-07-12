@@ -9,3 +9,9 @@ body {
   background: #09090b;
   color: #e4e4e7;
 }
+
+.page-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}

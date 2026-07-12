@@ -4,28 +4,8 @@ import Image from "next/image"
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/config";
+import { MarketDisplay, BackendMarket } from "@/types";
 
-type BackendMarket = {
-  id: string;
-  name: string;
-  symbol: string;
-  slug: string;
-  scale: string;
-  markPrice: string;
-  takerRate: string;
-  makerRate: string;
-  mmr: string;
-};
-
-type MarketDisplay = {
-  symbol: string;
-  name: string;
-  logo: string;
-  price: number;
-  volume24h: string;
-  openInterest: string;
-  change24h: number;
-};
 
 const logos: Record<string, string> = {
   "BTC-PERP": "/coins/btc.png",
@@ -64,7 +44,7 @@ export default function Home() {
  
   return (
       <main>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-lg container mx-2 p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <div className="flex flex-row gap-x-2 mb-3">
             <div><h2 className="text-lg font-semibold text-zinc-200">Futures</h2></div>
           </div>
