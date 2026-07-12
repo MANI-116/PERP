@@ -8,7 +8,6 @@ const PAGE_SIZE = 10;
 
 function Pagination({ page, total, onPrev, onNext }: { page: number; total: number; onPrev: () => void; onNext: () => void }) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  if (totalPages <= 1) return null;
   return (
     <div className="flex items-center justify-center gap-3 mt-3 text-sm">
       <button
@@ -18,7 +17,7 @@ function Pagination({ page, total, onPrev, onNext }: { page: number; total: numb
       >
         ← Prev
       </button>
-      <span className="text-zinc-500">{page} / {totalPages}</span>
+      <span className="text-zinc-500">{page} / {totalPages || 1}</span>
       <button
         onClick={onNext}
         disabled={page >= totalPages}
