@@ -47,6 +47,11 @@ export function Login() {
       }
 
       setUser({ name: data.username, isLoggedIn: true , userId:data.userId});
+
+      // Store the token from the response cookie into a client-side cookie
+      // on the current domain so the server component sees it on reload
+      document.cookie = "Authorization=" + encodeURIComponent(data.token) + "; path=/; max-age=86400; samesite=lax";
+
       window.location.href = "/";
     } catch {
       setErrors(["Could not connect to server"]);

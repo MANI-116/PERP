@@ -89,7 +89,7 @@ export async function signin(req: Request, res: Response) {
     return res
       .status(200)
       .cookie('Authorization', token)
-      .json({ message: 'successfull', username, userId: user.userId });
+      .json({ message: 'successfull', username, userId: user.userId, token });
   } catch (error) {
     return res.status(404).send({ error: 'error occured', message: error });
   }
