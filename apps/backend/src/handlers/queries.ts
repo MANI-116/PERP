@@ -54,14 +54,21 @@ export async function getOpenOrders(req: AuthRequest, res: Response) {
   try {
     const userId = req.body.userId;
     const { marketId } = req.params;
+    const skip = parseInt(req.query.skip as string) || 0;
+    const take = Math.min(parseInt(req.query.take as string) || 20, 100);
 
     if (typeof marketId !== 'string') {
       return res.send('send proper marketid');
     }
-    const orders = await prisma.order.findMany({
-      where: { userId, marketId, state: { in: ['OPEN'] } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where: { userId, marketId, state: { in: ['OPEN'] } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.order.count({ where: { userId, marketId, state: { in: ['OPEN'] } } }),
+    ]);
 
     const parsed = orders.map((o) => ({
       ...o,
@@ -71,7 +78,7 @@ export async function getOpenOrders(req: AuthRequest, res: Response) {
       slippage: o.slippage?.toString() ?? null,
     }));
 
-    return res.status(200).json({ orders: parsed });
+    return res.status(200).json({ orders: parsed, total, skip, take });
   } catch (error) {
     return res.status(500).json({ error: 'internal server error' });
   }
@@ -81,14 +88,21 @@ export async function getAllOrders(req: AuthRequest, res: Response) {
   try {
     const userId = req.body.userId;
     const { marketId } = req.params;
+    const skip = parseInt(req.query.skip as string) || 0;
+    const take = Math.min(parseInt(req.query.take as string) || 20, 100);
 
     if (typeof marketId !== 'string') {
       return res.send('send proper marketid');
     }
-    const orders = await prisma.order.findMany({
-      where: { userId, marketId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where: { userId, marketId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.order.count({ where: { userId, marketId } }),
+    ]);
 
     const parsed = orders.map((o) => ({
       ...o,
@@ -98,7 +112,7 @@ export async function getAllOrders(req: AuthRequest, res: Response) {
       slippage: o.slippage?.toString() ?? null,
     }));
 
-    return res.status(200).json({ orders: parsed });
+    return res.status(200).json({ orders: parsed, total, skip, take });
   } catch (error) {
     return res.status(500).json({ error: 'internal server error' });
   }
@@ -106,14 +120,20 @@ export async function getAllOrders(req: AuthRequest, res: Response) {
 
 export async function getFills(req: AuthRequest, res: Response) {
   const userId = req.body.userId;
+  const skip = parseInt(req.query.skip as string) || 0;
+  const take = Math.min(parseInt(req.query.take as string) || 20, 100);
+
   try {
-    const fills = await prisma.transaction.findMany({
-      where: {
-        OR: [{ takerId: userId }, { makerId: userId }],
-      },
-      select: { qty: true, price: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [fills, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { OR: [{ takerId: userId }, { makerId: userId }] },
+        select: { qty: true, price: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.transaction.count({ where: { OR: [{ takerId: userId }, { makerId: userId }] } }),
+    ]);
 
     const parsed = fills.map((f) => ({
       qty: f.qty.toString(),
@@ -121,7 +141,7 @@ export async function getFills(req: AuthRequest, res: Response) {
       createdAt: f.createdAt.toISOString(),
     }));
 
-    return res.status(200).json({ fills: parsed });
+    return res.status(200).json({ fills: parsed, total, skip, take });
   } catch (error) {
     return res.status(500).json({ error: 'internal server error' });
   }
