@@ -4,13 +4,23 @@ import { motion } from "motion/react"
 import React from "react";
 import { OrderbookStore, OrderBook, Socket, MarketManager } from "@/lib/socketManager";
 
+function SkeletonRow({ width }: { width: string }) {
+  return (
+    <div className="flex flex-row mb-px ml-1 mr-1">
+      <div className="flex-1"><div className="h-3 bg-zinc-800 rounded animate-pulse" style={{ width }} /></div>
+      <div className="flex-1 text-right"><div className="h-3 bg-zinc-800 rounded animate-pulse inline-block" style={{ width: "60%" }} /></div>
+      <div className="flex-1 text-right"><div className="h-3 bg-zinc-800 rounded animate-pulse inline-block" style={{ width: "40%" }} /></div>
+    </div>
+  );
+}
+
 function useOrderBook(marketId: string) {
-  const [snapshot, setSnapshot] = useState<OrderBook>(new OrderBook());
+  const [snapshot, setSnapshot] = useState<OrderBook | null>(null);
 
   useEffect(() => {
     (async function () {
       Socket.getInstance();
-      OrderbookStore.getOrderBook(marketId, setSnapshot);
+      await OrderbookStore.getOrderBook(marketId, setSnapshot);
     })();
 
     return () => {
@@ -20,44 +30,36 @@ function useOrderBook(marketId: string) {
     };
   }, [marketId]);
 
-  return {
-    askLevels: snapshot.askLevels,
-    bidLevels: snapshot.bidLevels,
-    bidsTotalQuantity: snapshot.totalBids,
-    asksTotalQuantity: snapshot.totalAsks,
-    levels: snapshot.priceLevelsData,
-  };
+  return snapshot ?? new OrderBook();
 }
 
 export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId: string }) {
-  const { askLevels, bidLevels, bidsTotalQuantity, asksTotalQuantity, levels } = useOrderBook(marketId);
+  const book = useOrderBook(marketId);
+  const loaded = book.askLevels.length > 0 || book.bidLevels.length > 0;
 
-  let asksCummulative = 0;
-  let bidsCummulative = 0;
+  const { askLevels, bidLevels, bidsTotalQuantity, asksTotalQuantity, levels } = loaded ? book : { askLevels: [] as number[], bidLevels: [] as number[], bidsTotalQuantity: 0, asksTotalQuantity: 0, levels: new Map<number, number>() };
 
   const asks = useMemo(() => {
+    if (!loaded) return [];
     let cum = 0;
     const total = asksTotalQuantity || 1;
     return askLevels.map((price) => {
       const qty = levels.get(price) ?? 0;
       cum += qty;
-      const selfPercent = Math.floor((qty / total) * 100);
-      const percent = Math.floor((cum / total) * 100);
-      return { price, qty, cum, selfPercent, percent };
+      return { price, qty, cum, selfPercent: Math.floor((qty / total) * 100), percent: Math.floor((cum / total) * 100) };
     }).reverse();
-  }, [askLevels, asksTotalQuantity, levels]);
+  }, [loaded, askLevels, asksTotalQuantity, levels]);
 
   const bids = useMemo(() => {
+    if (!loaded) return [];
     let cum = 0;
     const total = bidsTotalQuantity || 1;
     return bidLevels.map((price) => {
       const qty = levels.get(price) ?? 0;
       cum += qty;
-      const selfPercent = Math.floor((qty / total) * 100);
-      const percent = Math.floor((cum / total) * 100);
-      return { price, qty, cum, selfPercent, percent };
+      return { price, qty, cum, selfPercent: Math.floor((qty / total) * 100), percent: Math.floor((cum / total) * 100) };
     });
-  }, [bidLevels, bidsTotalQuantity, levels]);
+  }, [loaded, bidLevels, bidsTotalQuantity, levels]);
 
   return (
     <motion.div
@@ -71,6 +73,12 @@ export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId:
         <div className="flex-1 text-right">Size</div>
         <div className="flex-1 text-right">Total</div>
       </div>
+
+      {!loaded && (
+        <div className="px-1 space-y-2 py-1">
+          {[...Array(8)].map((_, i) => <SkeletonRow key={i} width={`${50 + Math.random() * 40}%`} />)}
+        </div>
+      )}
 
       {asks.map(({ price, qty, cum, selfPercent, percent }) => (
         <motion.div
