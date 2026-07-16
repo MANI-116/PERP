@@ -33,7 +33,7 @@ export function SignUp() {
             msgs.push(`${issue.path.join(".")}: ${issue.message}`);
           }
         } else if (data.message) {
-          msgs.push(data.message);
+          msgs.push(JSON.stringify(data.message));
         } else {
           msgs.push("Something went wrong");
         }
@@ -85,7 +85,8 @@ export function SignUp() {
 
         {errors.length > 0 && (
           <ul className="text-red-400 text-sm space-y-0.5">
-            {errors.map((msg, i) => (
+            {
+             errors.map((msg, i) => (
               <li key={i}>{msg}</li>
             ))}
           </ul>

@@ -1,11 +1,123 @@
 import { Update } from "@/types";
 import { API_BASE, WS_URL } from "./config";
 import { Queue } from "./queue";
-import { initialize } from "next/dist/server/lib/render-server";
+
 
 /**
  * Responsibility:
- * maintain subscriptions to markets
+ *  maintain socket connections
+ *  -connect return only after the connection is established
+ *  -send  send messages only after connection is established
+ *  -receive 
+ *  -disconnect
+ */
+
+export class Socket{
+  private dispatcher:EventBus;
+  private socket:WebSocket;
+  private waitTillOpen:Promise<void>;
+  private static instance:null | Socket;
+  
+  private constructor(){
+    this.dispatcher = EventBus.getInstance();
+    this.socket = new WebSocket(WS_URL);
+
+    //ready state promise
+    this.waitTillOpen = new Promise<void>((res,_)=>{
+      this.socket.onopen = ((e)=>{ 
+        console.log("ws connected")
+        res() })
+
+    });
+
+    //add onmessage hanlder
+    this.socket.addEventListener("message",this.messageHandler.bind(this))
+
+    }
+
+  static getInstance(){
+    if(this.instance){
+      return this.instance
+    }
+
+    this.instance = new Socket();
+
+    return this.instance;
+  }
+
+   messageHandler(message:MessageEvent){
+    this.dispatcher.dispatchEvent(message);
+    return;
+
+  }
+
+  async send(message:any){
+    await this.waitTillOpen;
+    await this.socket.send(message);
+  }
+
+}
+
+
+
+/**
+ * Event Bus
+ * Responsibility:
+ * route the messages to respective hadlers
+ * -allow to register for particular message type
+ */
+
+export class EventBus{
+  private eventMap:Map<string,(update:Update)=>void>;
+  private static instance:EventBus | null
+  private constructor(){
+    this.eventMap = new Map<string,(update:Update)=>void>();
+
+  }
+
+  static getInstance(){
+    if(this.instance){
+      return this.instance;
+
+    }
+
+    this.instance = new EventBus();
+    return this.instance;
+  }
+
+  register(messageType:string,handler:(update:Update)=>void){
+    console.log("register-event:",messageType);
+    this.eventMap.set(messageType,handler);
+
+  }
+  dispatchEvent(event:MessageEvent){
+    const data = JSON.parse(event.data) ;
+    const { type } = data;
+    if(!type){
+      console.log("type doesnot defined");
+      return;
+    }
+    const handler = this.eventMap.get(type);
+    if(!handler){
+      console.log("does not find the handler-",handler);
+      return;
+    }
+    console.log("calling handler:")
+    handler(data.data);
+  }
+}
+
+
+
+
+
+/**
+ * Responsibility:
+ * maintain orerbookstore connections
+ * subscribe : atomic
+ *  -send subcribe message and wait til it subscribed
+ * --register the dispatcher for the updates from the server
+ * 
  */
 
 export class MarketManager{
@@ -29,25 +141,27 @@ export class MarketManager{
     return MarketManager.instace;
   }
 
-  async subscribe(marketId:string){
+  
+
+  async subscribe(marketId:string,updateHanler:(update:Update)=>void){
     console.log("subscribing to ws");
     const eventBus = EventBus.getInstance();
-    const subscribePromise =  new Promise((res,_)=>{
+    const subscriptionReady =  new Promise((res,_)=>{
       this.callbakckResolvers.set(marketId,res);
     })
     eventBus.register("subscribeStatus",(data)=>{
       const resolver = this.callbakckResolvers.get(marketId);
       if(!resolver){
-        console.log("did not fin d the resolver");
+        console.log("did not find the resolver");
         return;
       }
       resolver(data);
     })
+    eventBus.register("update",updateHanler);
     await this.socket.send(JSON.stringify({type:"subscribe",marketId}));
      
-    //wait till subscribed
-    const response = await subscribePromise;
-    console.log("subsriiption status response-",response);
+    await subscriptionReady;
+  
 
   }
 
@@ -243,7 +357,7 @@ export class OrderBook{
 }
 
 /**
- * Create a shallow-cloned copy of OrderBook with new references for arrays/map.
+ * Create a shallow-cloned copy of OrderBook with new subscribePromisereferences for arrays/map.
  * This ensures React detects state changes via Object.is().
  */
 function cloneOrderBook(book: OrderBook): OrderBook {
@@ -272,7 +386,7 @@ export class OrderbookStore{
   private snapshotAvailable:boolean=false;
 
   
-  constructor(private marketId:string,private render:(orderbook:OrderBook)=>void){
+  private constructor(private marketId:string,private render:(orderbook:OrderBook)=>void){
     this.updates = new Queue<Update>();
     this.snapshot = new OrderBook();
   }
@@ -280,51 +394,27 @@ export class OrderbookStore{
   static async getOrderBook(marketId:string,render:(orderbook:OrderBook)=>void){
     const store = new OrderbookStore(marketId,render);
 
-    //register
-    const eventBus = EventBus.getInstance();
+  
     const marketManager = MarketManager.getInstance();
-    eventBus.register("update",store.applyUpdate.bind(store));
 
-    await marketManager.subscribe(marketId);
+    //wait till subscribed and register the update handler
+    await marketManager.subscribe(marketId,store.applyUpdate.bind(store));
 
-    //get snapshot
+    // Fetch snapshot 
     await store.setSnapshot();
-
-    //apply updates
-    //ignore updates before the snapshot uid
-    while(!store.updates.isEmpty){
-      const update = store.updates.front();
-      if(!update) return;
-      const snapshotUid = store.snapshot.snapshotUid;
-
-      if(update.uid < snapshotUid){
-        store.updates.dequeue()
-        continue;
-      }
-
-      if(update.uid === snapshotUid){
-        store.updates.dequeue
-        break;
-      }
-
-      break;
-    }
-
-    //apply updates from uid = snapshotUid +1;
-
-    while(!store.updates.isEmpty){
-      const update = store.updates.dequeue();
-      if(!update) return;
-      const res = store.snapshot.update(update);
-      if(!res){
-        //update loss:
-        //TODO
-      }
-    }
-    
-    //call render
-    store.snapshotAvailable=true;
     store.render(cloneOrderBook(store.snapshot));
+
+    // Apply any queued pre-snapshot updates
+    while(!store.updates.isEmpty()){
+      const update = store.updates.dequeue();
+      if(!update) break;
+      if(update.uid < store.snapshot.snapshotUid) continue;
+      store.snapshot.update(update);
+    }
+
+    store.snapshotAvailable=true;
+
+    render(cloneOrderBook(store.snapshot));
   }
 
   async setSnapshot(){
@@ -386,221 +476,3 @@ export class OrderbookStore{
   
 
 }
-
-/**
- * Event Bus
- * Responsibility:
- * route the messages to respective hadlers
- * -allow to register for particular message type
- */
-
-export class EventBus{
-  private eventMap:Map<string,(update:Update)=>void>;
-  private static instance:EventBus | null
-  private constructor(){
-    this.eventMap = new Map<string,(update:Update)=>void>();
-
-  }
-
-  static getInstance(){
-    if(this.instance){
-      return this.instance;
-
-    }
-
-    this.instance = new EventBus();
-    return this.instance;
-  }
-
-  register(messageType:string,handler:(update:Update)=>void){
-    console.log("register-event:",messageType);
-    this.eventMap.set(messageType,handler);
-
-  }
-  dispatchEvent(event:MessageEvent){
-    const data = JSON.parse(event.data) ;
-    const { type } = data;
-    if(!type){
-      console.log("types doesnot defined");
-      return;
-    }
-    const handler = this.eventMap.get(type);
-    if(!handler){
-      console.log("does not find the handler-",handler);
-      return;
-    }
-    console.log("calling handler:")
-    handler(data.data);
-  }
-}
-
-
-/**
- * Responsibility:
- *  maintain socket connections
- *  -connect
- *  -send
- *  -receive
- *  -disconnect
- */
-
-export class Socket{
-  private dispatcher:EventBus;
-  private socket:WebSocket;
-  private waitTillOpen:Promise<void>;
-  private static instance:null | Socket;
-  
-  private constructor(){
-    this.dispatcher = EventBus.getInstance();
-    this.socket = new WebSocket(WS_URL);
-
-    //ready state promise
-    this.waitTillOpen = new Promise<void>((res,_)=>{
-      this.socket.onopen = ((e)=>{ 
-        console.log("ws connected")
-        res() })
-
-    });
-
-    //add onmessage hanlder
-    this.socket.addEventListener("message",this.messageHandler.bind(this))
-
-    }
-
-  static getInstance(){
-    if(this.instance){
-      return this.instance
-    }
-
-    this.instance = new Socket();
-
-    return this.instance;
-  }
-
-   messageHandler(message:MessageEvent){
-    this.dispatcher.dispatchEvent(message);
-    return;
-
-  }
-
-  async send(message:any){
-    await this.waitTillOpen;
-    await this.socket.send(message);
-  }
-
-}
-
-// export class SocketManager{
-//   private socket:WebSocket 
-//   private updateQueue:Queue<Update>
-//   private lastUpdateId:number = -1;
-//   private ready:Promise<void>;
-//   private subsribers:Map<string,(data:any)=>void>;
-//   private static  subscribeResolver:(value:unknown)=>void;
-
-//   constructor(){
-//     console.log("==============socket contructiing===========")
-//    this.socket = new WebSocket(WS_URL);
-//    this.updateQueue = new Queue<Update>();
-//    this.socket.addEventListener("message",this.messageHandler.bind(this));
-//    this.ready = new Promise((resolve,reject)=>{ this.socket.onopen = ()=>{resolve()}});
-//    this.subsribers = new Map<string,(data:any)=>void>
-//   }
-
-//   async unsubscribe(marketId:string){
-//        await this.socket.send(JSON.stringify({type:"unsubscribe",marketId}));
-
-//   }
-
-//   async listen(updateFunc:()=>void){
-    
-//   }
-//   private static instance:SocketManager|null;
-//   static giveInstance(){
-//     if(this.instance){
-//         return this.instance;
-//     }
-//     this.instance = new SocketManager();
-//     return this.instance;
-
-//   }
-
-//   async subscribe(marketId:string,updater:(data:any)=>void){
-//       console.log("waiting for connection to open")
-//       await this.ready
-//       console.log("connection opened")
-//       await this.socket.send(JSON.stringify({type:"subscribe",marketId}));
-//       await new Promise((res,_)=>{SocketManager.subscribeResolver=res});
-//       //websocket is subscribed 
-//       //storing the handler for sending the update;
-//       this.subsribers.set(marketId,updater);
-    
-   
-//     console.log("subscribed to the new market")
-//   }
-
-//   messageHandler(event:MessageEvent){
-//     console.log("event data-",event);
-//     const eventData = JSON.parse(event.data);
-//     console.log("message handler-",eventData);
-//     switch(eventData.type){
-//       case "subscribeStatus": {this.handleSubscribing(eventData.data)}
-//       break;
-
-//       case "update" : {this.handleUpdates(eventData)}
-//       break;
-
-//       case "unSubscribeStatus": {this.handleUnsubscribing(eventData.data)}
-//       break;
-
-
-//       default: console.log("unknown event type",eventData);
-//       return
-//     }
-//   }
-
-//   handleSubscribing(data:any){
-//     console.log("got the response from the wss:-",data)
-//      if(data.success){
-//       SocketManager.subscribeResolver("");
-//         console.log("ws-subscribed");
-//       }else{
-//         console.log("ws-connectionn failed-",data.message);
-//         //todo retry mechanism
-//       }
-
-//   }
-//    handleUnsubscribing(data:any){
-//     console.log("got the response from the wss:-",data)
-//      if(data.success){
-//         console.log("===========ws-unsubsribed=========");
-//       }else{
-//         console.log("ws-connectionn failed-",data.message);
-//         //todo retry mechanism
-//       }
-
-//   }
-
-//   handleUpdates(update:Update){
-
-//     console.log("got the update-",update);
-//     if(this.lastUpdateId+1 != update.uid){
-//         //update or updates lost we can empty the queue and set the update the lastUYpdatId
-//         //get the new snapshot and restart the thing
-//         this.updateQueue.clear();   
-//     }
-//     this.lastUpdateId = update.uid;
-//     this.updateQueue.enqueue(update);
-
-//   }
-
-//   consumeUpdate(){
-//     return this.updateQueue.dequeue();
-//   }
-
-//   hasUpdates(){
-//     return !this.updateQueue.isEmpty();
-//   }
-
-// }
-

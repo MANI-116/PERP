@@ -3,9 +3,14 @@ import { WebSocket, WebSocketServer } from "ws"
 import http from "http"
 import { type EngineResponse, type RedisResponse} from "@repo/types"
 import { prisma } from "@repo/db"
+import { handleSubscribe, handleUnsubscribe } from "./handlers/index.js"
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+if(!redisUrl){
+    console.log("redis url is not defined,env is not loaded properly ");
+    process.exit(1);
+};
+const receiver = createClient({ url: redisUrl} );
 receiver.on("error",(error)=>{
     console.log("error on connceting to the receiver-",error);
 })
@@ -40,44 +45,22 @@ server.listen(8080,()=>{
     console.log("ws server is listening from the port:",8080)
 })
 
-function handleUnsubscribe(marketId:string,ws:WebSocket){
-     const set = subscribers.get(marketId);
-     if(!set){
-        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"subscribed successfully but no market found "}}))    
-     }else{
-        set.delete(ws);
-        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"subscribed successfully "}}))
-     }
-}
+
 
 wss.on("connection",(ws,request)=>{
 
     ws.on("message",(buffer)=>{
+
         const data = JSON.parse(buffer.toString());
-        console.log("got the message-",data);
+    
         if(data.type === "subscribe"){
             console.log("message to subscribe-",data);
             const marketId = data.marketId;
-            const set = subscribers.get(marketId);
-            if(!set){
-                const mid = marketUpdates.get(marketId);
-                console.log("marketId-",mid);
-                if(mid != undefined){
-                    const set = new Set<WebSocket>();
-                    set.add(ws);
-                    subscribers.set(marketId,set);
-                    return ws.send(JSON.stringify({type:"subscribeStatus",data:{success:true,message:"subscribed successfully "}}))
-                }
-                return ws.send(JSON.stringify({type:"subscribeStatus",data:{success:false,message:"market does not found"}}));
-            }
-            if(set.has(ws)){
-                return ws.send(JSON.stringify({type:"subscribeStatus",data:{success:true,messageg:"already subscribed"}}))
-            }
-            set.add(ws);
-            return ws.send(JSON.stringify({type:"subscribeStatus",data:{success:true}}));
+            handleSubscribe(marketId,ws,subscribers,marketUpdates);
+
         }else if(data.type==="unsubscribe"){
             const marketId=data.marketId;
-            handleUnsubscribe(marketId,ws)
+            handleUnsubscribe(marketId,ws,subscribers);
         }
     })
 
@@ -91,12 +74,19 @@ wss.on("connection",(ws,request)=>{
     })
 })
 
+
+
 try {
-   await receiver.xGroupCreate("response-stream","websocketserver","$",{MKSTREAM:true});
+   await receiver.xGroupCreate("response-stream",
+    "websocketserver",
+    "$",
+    {MKSTREAM:true});
 } catch (error) {
     console.log("error on creating the websocketserver",error)
 }
 
+
+//non-blocking loop to read the messages from the response-stream and broadcast to the subscribers
 while(true){
     console.log("-- waiting for the engine events --")
     const response :RedisResponse[] |null= await receiver.xReadGroup("websocketserver","ws-1",[{key:"response-stream",id:">"}],{BLOCK:10000}) as RedisResponse[] |null;
@@ -158,10 +148,12 @@ while(true){
             continue;
         }
 
+        //sending the updates without await so that receiver with bad network does not block the other subscribers
         for(const subscriber of subs){
             console.log('sending messages to the subsriber')
+        
             //@ts-ignore
-            await subscriber.send(JSON.stringify({type:"update",data:message.updates}));
+            subscriber.send(JSON.stringify({type:"update",data:message.updates}));
         }
     
         await receiver.xAck("response-stream","websocketserver",id);

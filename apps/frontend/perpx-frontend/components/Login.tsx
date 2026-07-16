@@ -41,6 +41,7 @@ export function Login() {
         } else {
           msgs.push("Login failed");
         }
+        console.log("msgs-",msgs);
 
         setErrors(msgs);
         return;
@@ -54,6 +55,7 @@ export function Login() {
 
       window.location.href = "/";
     } catch {
+      console.log("error on the login");
       setErrors(["Could not connect to server"]);
     }
   }
@@ -87,7 +89,7 @@ export function Login() {
         {errors.length > 0 && (
           <ul className="text-red-400 text-sm space-y-0.5">
             {errors.map((msg, i) => (
-              <li key={i}>{msg}</li>
+              <li key={i}>{JSON.stringify(msg)}</li>
             ))}
           </ul>
         )}

@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { prisma } from '@repo/db';
-import { responseManager } from '../response-manager.js';
 import type { AuthRequest } from '../middleware.js';
+import { responseManager } from '../../util.js';
+
+
 
 export async function getEquity(req: AuthRequest, res: Response) {
   try {
@@ -154,6 +156,7 @@ export async function getMarkets(req: Request, res: Response) {
       ...m,
       scale: m.scale.toString(),
       markPrice: m.markPrice.toString(),
+      lastPrice: m.lastPrice?.toString() ?? null,
       takerRate: m.takerRate.toString(),
       makerRate: m.makerRate.toString(),
       mmr: m.mmr.toString(),

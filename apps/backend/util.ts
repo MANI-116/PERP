@@ -1,7 +1,7 @@
 import { createClient } from 'redis';
 import { type EngineRequest } from '@repo/types';
 export function generateId() {
-  const id = `ord-${Date.now() + Math.floor(Math.random() * 1e6)}`;
+  const id = `eventCid-${Date.now() + Math.floor(Math.random() * 1e6)}`;
   return id;
 }
 
@@ -24,21 +24,30 @@ type XReadResponse = Stream[] | null;
 
 type RedisClientType = ReturnType<typeof createClient>;
 
-export class ResponseManager {
+ class ResponseManager {
   private requestMap: Map<string, (value: any) => void>;
   private lastProcessedEventId = 0n;
-
-  constructor(
+  private static instance: ResponseManager | null = null;
+  private constructor(
     private sender: RedisClientType,
     private receiver: RedisClientType,
   ) {
+
+    console.log('backend: response manager initialized',Math.random()*1e6);
     this.requestMap = new Map<string, (value: any) => void>();
     this.responsePuller();
   }
 
+  static async getInstance() {
+    if(!ResponseManager.instance){
+      const {receiver,sender} =await ResponseManager.create();
+      ResponseManager.instance = new ResponseManager(sender, receiver);
+    }
+    return ResponseManager.instance;
+  }
+
   private async responsePuller() {
     while (true) {
-      console.log('fetching the reesponses from the engine....');
       try {
         const response: XReadResponse = (await this.receiver.xReadGroup(
           'response-group',
@@ -49,18 +58,19 @@ export class ResponseManager {
               id: '>',
             },
           ],
-          { BLOCK: 5000 },
+          { BLOCK: 50000 },
         )) as XReadResponse;
-        console.log('response from the queue-', response);
-        if (!response) continue;
+        
+        if (!response) {
+          continue;
+        }
         const stream = response[0];
+
         if (stream === undefined) continue;
         const messages = stream.messages;
-        for (const msg of messages) {
-          console.log('msg from the response stream-', msg);
-          const raw = msg.message;
-          console.log('response from the queue-', raw);
 
+        for (const msg of messages) {
+          const raw = msg.message;
           let parsed: StreamMessage = {};
           try {
             parsed = JSON.parse(raw.message || '{}');
@@ -76,11 +86,14 @@ export class ResponseManager {
             this.lastProcessedEventId = evId;
           }
 
-          if (raw.corelationId) {
-            console.log("calling the resolver")
+          if (raw.corelationId){
+            console.log("calling the resolver-",raw.corelationId, "message-",raw.message);
+
             const resolver = this.requestMap.get(raw.corelationId);
-            if (resolver === undefined) continue;
-            console.log('resolver found-');
+            if (resolver === undefined) {
+              console.log('resolver not found for correlationId-', raw.corelationId);
+              continue};
+            console.log('resolver found-',raw.message);
             resolver(JSON.parse(raw.message as string));
             this.requestMap.delete(raw.corelationId);
           }
@@ -95,7 +108,21 @@ export class ResponseManager {
   }
   async putRequest(request: EngineRequest) {
     try {
-      const corelationId = generateId();
+       const corelationId = generateId();
+       const resolverPromise= new Promise<any>((res, rej) => {
+        console.log("setting the resolver for the corelationId-",corelationId);
+        this.requestMap.set(corelationId, res);
+        console.log('requespmap wether have res or not-',this.requestMap.has(corelationId));
+        // Timeout: clean up stale correlation IDs after 30s
+        setTimeout(() => {
+          if (this.requestMap.has(corelationId)) {
+            console.log('backend: timing out correlationId', corelationId);
+            this.requestMap.delete(corelationId);
+            rej(new Error('engine response timeout'));
+          }
+        }, 30000);
+      });
+      console.log('messsage is added to the queue');
       if (request.type === 'CREATE_ORDER') {
         const { leverage, price, qty } = request.payload;
         let payload = {
@@ -118,34 +145,28 @@ export class ResponseManager {
           payload: JSON.stringify(payload),
         });
       } else {
+       
         await this.sender.xAdd('engine-stream', '*', {
           corelationId,
           type: request.type,
           payload: JSON.stringify(request.payload),
         });
       }
-      console.log('messsage is added to the queue');
-      return new Promise<any>((res, rej) => {
-        this.requestMap.set(corelationId, res);
-        // Timeout: clean up stale correlation IDs after 30s
-        setTimeout(() => {
-          if (this.requestMap.has(corelationId)) {
-            console.log('backend: timing out correlationId', corelationId);
-            this.requestMap.delete(corelationId);
-            rej(new Error('engine response timeout'));
-          }
-        }, 30000);
-      });
+      return resolverPromise;
     } catch (error) {
       console.log('error on placing the request to the engine-', error);
       return null;
     }
   }
 
-  public static async create() {
-    const redisUrl = process.env.REDIS_URL ?? undefined;
-    const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
-    const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+  private static async create() {
+    const redisUrl = process.env.REDIS_URL;
+
+    if(!redisUrl){
+      throw new Error('REDIS_URL is not defined in the environment variables');
+    }
+    const receiver = createClient({ url: redisUrl } );
+    const sender = createClient( { url: redisUrl } );
 
     receiver.on('error', (error) => {
       console.log('error on receiver connecting to redis-', error);
@@ -161,6 +182,9 @@ export class ResponseManager {
     });
     await receiver.connect();
     await sender.connect();
-    return new ResponseManager(sender, receiver);
+    return {receiver,sender};
+    
   }
 }
+
+export const responseManager = await ResponseManager.getInstance();

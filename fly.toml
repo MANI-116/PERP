@@ -1,44 +1,46 @@
-# fly.toml — Fly.io deployment for backend services
-# Requires: PostgreSQL (Neon/Supabase), Redis (Upstash)
+# fly.toml app configuration file generated for perpx-backend on 2026-07-11T16:06:41+05:30
 #
-# Set secrets:
-#   fly secrets set DATABASE_URL="postgresql://..."
-#   fly secrets set REDIS_URL="redis://..."
-#   fly secrets set JWT_PASS="<random-secret>"
-#   fly secrets set BINANCE_URL="wss://fstream.binance.com/ws/!markPrice@arr@1s"
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "perpx-backend"
-
-primary_region = "iad"
+app = 'perpx-backend'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3001'
 
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
 [[services]]
-  port = 8080
-  protocol = "tcp"
+  protocol = 'tcp'
   internal_port = 8080
-  processes = ["app"]
+  ports = []
+  processes = ['app']
+
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 100
     soft_limit = 50
 
-[env]
-  PORT = "3001"
-  NODE_ENV = "production"
-
 [checks]
   [checks.health]
-    type = "http"
-    path = "/markets"
-    interval = "30s"
-    timeout = "5s"
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    path = '/markets'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024

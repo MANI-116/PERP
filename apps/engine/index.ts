@@ -4,12 +4,10 @@ import { engineManager } from './engineManager';
 import { Engine } from '@repo/engine-package';
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
-export const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+const receiver = createClient( { url: redisUrl});
+export const sender = createClient({ url: redisUrl});
 
 let lastProcessedStreamId = '0';
-let messageCount = 0;
-const SNAPSHOT_INTERVAL = 100;
 
 async function pushSnapshot(streamId: string) {
   try {
@@ -38,7 +36,7 @@ async function pushSnapshot(streamId: string) {
       liquidationCounters: engine.getLiquidationCountersForSnapshot(),
       streamId,
     }));
-    console.log('snapshot pushed to response-stream at message', messageCount);
+    console.log('snapshot pushed to response-stream');
   } catch (error) {
     console.log('error on pushing snapshot-', error);
   }
@@ -110,6 +108,15 @@ try {
   console.log('creating the response-stream');
 }
 
+// Snapshot every 10 minutes, trim streams periodically
+setInterval(async () => {
+  await pushSnapshot(lastProcessedStreamId);
+  try {
+    await receiver.xTrim('engine-stream', 'MAXLEN', 10000);
+    await receiver.xTrim('response-stream', 'MAXLEN', 50000);
+  } catch {}
+}, 10 * 60 * 1000);
+
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, dumping final snapshot...');
   await pushSnapshot(lastProcessedStreamId);
@@ -178,16 +185,6 @@ while (true) {
         corelationId: msg.message.corelationId ? msg.message.corelationId : '',
       });
       console.log('sender response-', senderRes);
-
-      messageCount++;
-      if (messageCount % SNAPSHOT_INTERVAL === 0) {
-        await pushSnapshot(id);
-        // Trim both streams periodically to prevent unbounded growth
-        try {
-          await receiver.xTrim('engine-stream', 'MAXLEN', 10000);
-          await receiver.xTrim('response-stream', 'MAXLEN', 50000);
-        } catch {}
-      }
     }
   } catch (error) {
     console.log('error on receiving signals-', error);

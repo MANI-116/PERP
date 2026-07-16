@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken"
+import { MarketInfo } from "@/components/MarketInfo";
 import { Orderbook } from "@/components/Orderbook";
 import { OrderForm } from "@/components/OrderrForm";
 import { Stakes } from "@/components/Stakes";
@@ -38,15 +39,20 @@ export default async function TradePage({params}:{params:Promise<{market:string}
     return (
       <div className="flex flex-col items-center">
         <div className="flex flex-row max-h-[80vh] gap-x-2 w-full justify-center">
-          <div className="flex w-full flex-row overflow-y-auto gap-x-0.5">
-            <div className="w-[100%] bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-              <span className="text-sm font-semibold">{marketSymbol}</span>
-            </div>
+          <div className="flex  flex-row overflow-y-auto gap-x-0.5 w-full">
+            <MarketInfo
+              name={market.name}
+              symbol={market.symbol}
+              markPrice={market.markPrice}
+              ltp={market.lastPrice}
+              scale={market.scale}
+              className="flex-1"
+            />
             <div><Orderbook marketId={market.id} /></div>
           </div>
           <OrderForm user={userId} market={market.id} marketInfo={{ scale: Number(market.scale) }} />
         </div>
-        <div className="w-full">
+        <div className="w-full mt-2">
           <Stakes market={market.id} />
         </div>
       </div>

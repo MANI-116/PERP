@@ -21,25 +21,30 @@ export default function Home() {
   const [markets, setMarkets] = useState<MarketDisplay[]>([]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/markets`)
-      .then((r) => r.json())
-      .then((data) => {
-        const parsed: MarketDisplay[] = data.markets.map((m: BackendMarket) => {
-          const scale = Number(m.scale);
-          const price = Number(m.markPrice) / scale;
-          return {
-            symbol: m.symbol,
-            name: m.name,
-            logo: logos[m.symbol] ?? "/coins/btc.png",
-            price,
-            volume24h: "—",
-            openInterest: "—",
-            change24h: 0,
-          };
-        });
-        setMarkets(parsed);
-      })
-      .catch(console.error);
+    function fetchMarkets() {
+      fetch(`${API_BASE}/markets`)
+        .then((r) => r.json())
+        .then((data) => {
+          const parsed: MarketDisplay[] = data.markets.map((m: BackendMarket) => {
+            const scale = Number(m.scale);
+            const price = (m.lastPrice ? Number(m.lastPrice) : Number(m.markPrice)) / scale;
+            return {
+              symbol: m.symbol,
+              name: m.name,
+              logo: logos[m.symbol] ?? "/coins/btc.png",
+              price,
+              volume24h: "—",
+              openInterest: "—",
+              change24h: 0,
+            };
+          });
+          setMarkets(parsed);
+        })
+        .catch(console.error);
+    }
+    fetchMarkets();
+    const interval = setInterval(fetchMarkets, 3000);
+    return () => clearInterval(interval);
   }, []);
  
   return (

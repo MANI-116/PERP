@@ -1,11 +1,12 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@repo/db';
-import { responseManager } from '../response-manager.js';
 import { signUpSchema, signInSchema } from '../schemas.js';
+import { responseManager } from '../../util.js';
+
 
 export async function signup(req: Request, res: Response) {
-  console.log('user signup');
+  console.log('user signup-', req.body);
 
   try {
     const parsedResponse = await signUpSchema.safeParseAsync(req.body);
@@ -42,6 +43,7 @@ export async function signup(req: Request, res: Response) {
       .status(201)
       .send({ message: 'user created', userId: newUser.userId });
   } catch (error) {
+    console.log('error on the signup-', error);
     return res.status(404).send({ error: 'error occured', message: error });
   }
 }
@@ -66,7 +68,7 @@ export async function signin(req: Request, res: Response) {
 
     if (!user) {
       return res
-        .status(400)
+        .status(404)
         .send({ message: 'please check your password and username' });
     }
 
@@ -91,6 +93,7 @@ export async function signin(req: Request, res: Response) {
       .cookie('Authorization', token)
       .json({ message: 'successfull', username, userId: user.userId, token });
   } catch (error) {
+    console.log('error on the signin-', error);
     return res.status(404).send({ error: 'error occured', message: error });
   }
 }

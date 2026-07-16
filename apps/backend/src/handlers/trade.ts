@@ -1,15 +1,16 @@
 import type { Response } from 'express';
 import { ZodError } from 'zod';
-import { responseManager } from '../response-manager.js';
 import {
   CreateOrderSchema,
   deleteOrderSchema,
   rampUserSchema,
 } from '../schemas.js';
 import type { AuthRequest } from '../middleware.js';
+import { responseManager } from '../../util.js';
+
 
 function generateId() {
-  return `ord-${Date.now() + Math.random() * 1e6}`;
+  return `eventCid-${Date.now() + Math.random() * 1e6}`;
 }
 
 export async function placeOrder(

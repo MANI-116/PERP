@@ -2,8 +2,8 @@ import { createClient } from "redis";
 import { prisma} from "@repo/db"
 import {  type EngineResponse } from "@repo/types"
 
-const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+const redisUrl = process.env.REDIS_URL
+const receiver = createClient({url: redisUrl });
 
 interface RedisResponse{   
     name: string;
@@ -24,7 +24,7 @@ receiver.on("error",(e)=>{
 await receiver.connect();
 
 try {
-    await receiver.xGroupCreate("response-stream","dbPoller","$",{MKSTREAM:true})
+    await receiver.xGroupCreate("response-stream","dbPoller","0",{MKSTREAM:true})
 } catch (error) {
     if(error instanceof Error)
     console.log("error on creating dbPOller group-",error.name,error.message);
@@ -43,6 +43,33 @@ try {
     console.log("dbPoller: no existing engine state, starting fresh-", error);
 }
 
+// Catch-up: process all unprocessed existing messages before reading new ones
+if (lastProcessedEventId === 0n) {
+    console.log("dbPoller: catch-up phase starting...");
+    let catchUpDone = false;
+    while (!catchUpDone) {
+        const batch = await receiver.xReadGroup("dbPoller","poller-1",[{key:"response-stream",id:"0"}],{COUNT:100}) as (RedisResponse[] |null);
+        if (!batch || !batch[0]?.messages || batch[0].messages.length === 0) {
+            catchUpDone = true;
+            break;
+        }
+        for (const msg of batch[0].messages) {
+            if (msg.message.message === undefined) {
+                await receiver.xAck("response-stream","dbPoller",msg.id);
+                continue;
+            }
+            const message = JSON.parse(msg.message.message) as EngineResponse;
+            await dbWorker(message);
+            if (message.event !== "SNAPSHOT" && message.eventId) {
+                lastProcessedEventId = BigInt(message.eventId);
+            }
+            await receiver.xAck("response-stream","dbPoller",msg.id);
+        }
+        if ((batch[0]?.messages?.length ?? 0) < 100) catchUpDone = true;
+    }
+    console.log("dbPoller: catch-up phase complete");
+}
+
 while(true){
     const response = await receiver.xReadGroup("dbPoller","poller-1",[{key:"response-stream",id:">"}],{BLOCK:2000}) as (RedisResponse[] |null)
     if(response === null) continue;
@@ -55,30 +82,9 @@ while(true){
             continue;
         }
         const message = JSON.parse(msg.message.message) as EngineResponse;
-        
-        // Event ID idempotency guard
-        if (message.event !== "SNAPSHOT") {
-            const eventId = message.eventId ? BigInt(message.eventId) : 0n;
-            if (eventId <= lastProcessedEventId) {
-                console.log("dbPoller: skipping duplicate event", message.event, eventId.toString());
-                await receiver.xAck("response-stream","dbPoller",msg.id);
-                continue;
-            }
-        }
 
         console.log("message from the response stream-",message);
         await dbWorker(message);
-        
-        // Update lastProcessedEventId in PostgreSQL
-        if (message.event !== "SNAPSHOT" && message.eventId) {
-            const eventId = BigInt(message.eventId);
-            lastProcessedEventId = eventId;
-            await prisma.engineState.upsert({
-                where: { id: "singleton" },
-                create: { id: "singleton", lastProcessedEventId: eventId },
-                update: { lastProcessedEventId: eventId },
-            });
-        }
         
         await receiver.xAck("response-stream","dbPoller",msg.id);
     }
@@ -240,6 +246,18 @@ async function updateOrder(orderDetails:EngineResponse){
                 });
                 console.log("transaction created:-",response);
             }
+
+            // Update lastPrice for the market
+            try {
+                await prisma.market.update({
+                    where: { id: marketId },
+                    data: { lastPrice: BigInt(price) },
+                });
+                console.log("dbPoller: updated lastPrice for market", marketId, "to", price);
+            } catch (err) {
+                console.log("dbPoller: failed to update lastPrice for market", marketId, err);
+            }
+
             return;
         }
     } catch (error) {
