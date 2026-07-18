@@ -303,6 +303,7 @@ export class Engine {
   }
 
   placeLimitOrder(payload: CreateOrderRequest, market: Market): EngineResponse {
+    console.log("placing limit order-")
     const lockres = this.lockMargin(payload, market);
     if (!lockres.success) {
       return rejectOrderResponse(lockres.error, payload);

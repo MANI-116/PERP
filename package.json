@@ -15,6 +15,7 @@
     "db-poller": "bun run apps/dbPoller/index.ts",
     "wss": "bun run apps/wsServer/index.ts",
     "recover": "bun run scripts/recover-engine.ts",
+    "reset": "bun run scripts/reset-and-seed.ts",
     "test": "bun test apps/tests/",
     "test:engine": "bun test apps/tests/structuresTests/engine.test.ts",
     "test:integration": "bun test apps/tests/integration.test.ts"
