@@ -248,12 +248,16 @@ export class Engine {
     payload: CreateOrderRequest,
     market: Market,
   ): { success: false; error: string } | { success: true; message: string } {
+
     if (payload.leverage <= 0n) {
       return { success: false, error: 'leverage must be greater than 0' };
     }
     const sameMarketPosition = this.userManager.getPosition(payload.userId, market.marketId);
+
     if (sameMarketPosition.success) {
       const getdataRes = market.getData(sameMarketPosition.positionId, { keys: ['side', 'qty', 'state'] });
+
+      console.log("getdataRes-",getdataRes);
       if (!getdataRes.success) {
         return { success: false, error: 'market unable to get side from the market' };
       }
@@ -386,39 +390,40 @@ export class Engine {
     return filledResponse(response as any, order, market);
   }
 
-  placeOrder(payload: CreateOrderRequest): EngineResponse {
+  placeOrder(requestOrder: CreateOrderRequest): EngineResponse {
+    console.log("olacing order-",requestOrder);
     const eventId = this.getNextEventId().toString();
 
     // Liquidation replay guard: skip if this liquidation was already processed
-    if (payload.liquidationId) {
-      const parts = payload.liquidationId.split(':');
+    if (requestOrder.liquidationId) {
+      const parts = requestOrder.liquidationId.split(':');
       // format: "lqOrder:{marketId}:{counter}"
       const liqMarketId = parts[1];
       const liqCounterStr = parts[2];
       if (!liqMarketId || !liqCounterStr) {
-        return { ...rejectOrderResponse('malformed liquidationId', payload), eventId };
+        return { ...rejectOrderResponse('malformed liquidationId', requestOrder), eventId };
       }
       const liqCounter = BigInt(liqCounterStr);
       const lastCounter = this.liquidationCounters.get(liqMarketId)!;
       if (lastCounter !== undefined && liqCounter <= lastCounter) {
-        return { ...rejectOrderResponse('already liquidated on replay', payload), eventId };
+        return { ...rejectOrderResponse('already liquidated on replay', requestOrder), eventId };
       }
       this.liquidationCounters.set(liqMarketId, liqCounter);
     }
 
-    const market = this.marketManager.getMarket(payload.marketId);
-    const user = this.userManager.foundUser(payload.userId);
-    if (user === undefined) {
-      return { ...rejectOrderResponse('user not found', payload), eventId };
-    }
+    const market = this.marketManager.getMarket(requestOrder.marketId);
     if (market === undefined) {
-      return { ...rejectOrderResponse('market not found', payload), eventId };
+      return { ...rejectOrderResponse('market not found', requestOrder), eventId };
+    }
+    const user = this.userManager.foundUser(requestOrder.userId);
+    if (user === undefined) {
+      return { ...rejectOrderResponse('user not found', requestOrder), eventId };
     }
 
-    if (payload.type === 'LIMIT') {
-      return { ...this.placeLimitOrder(payload, market), eventId };
+    if (requestOrder.type === 'LIMIT') {
+      return { ...this.placeLimitOrder(requestOrder, market), eventId };
     }
-    return { ...this.placeMarketOrder(payload, market), eventId };
+    return { ...this.placeMarketOrder(requestOrder, market), eventId };
   }
 }
 

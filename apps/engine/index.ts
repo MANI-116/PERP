@@ -2,6 +2,7 @@ import { type RedisResponse, type EngineResponse } from '@repo/types';
 import { createClient } from 'redis';
 import { engineManager } from './engineManager';
 import { Engine } from '@repo/engine-package';
+import { prisma } from '@repo/db';
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
 const receiver = createClient( { url: redisUrl});
@@ -29,14 +30,7 @@ async function pushSnapshot(streamId: string) {
       message: JSON.stringify(snapshotEvent),
       corelationId: '',
     });
-    // Store in Redis key for engine auto-recovery (no DB dependency)
-    await sender.set('engine:snapshot:latest', JSON.stringify({
-      snapshot,
-      lastEventId: engine.getLastEventId().toString(),
-      liquidationCounters: engine.getLiquidationCountersForSnapshot(),
-      streamId,
-    }));
-    console.log('snapshot pushed to response-stream');
+   
   } catch (error) {
     console.log('error on pushing snapshot-', error);
   }
@@ -46,18 +40,24 @@ let recoveredStreamId: string | null = null;
 
 async function tryAutoRecovery() {
   try {
-    const raw = await receiver.get('engine:snapshot:latest');
-    if (!raw) {
+    const data = await prisma.snapshot.findFirst({
+      orderBy:{lastEventId:"desc"}
+    });
+   
+    if (!data) {
       console.log('no snapshot found for auto-recovery, starting fresh');
       return;
     }
-    const data = JSON.parse(raw);
+   
     const restored = Engine.createFromSnapshot(data.snapshot);
+    
     if (!restored) {
       console.log('auto-recovery: snapshot corrupted, starting fresh');
       return;
     }
     restored.setEventId(BigInt(data.lastEventId));
+    
+    console.log(  "liquidation Counters-",data.liquidationCounters)
     restored.setLiquidationCounters(data.liquidationCounters);
     if (data.streamId) {
       recoveredStreamId = data.streamId;
@@ -84,7 +84,7 @@ await sender.connect();
 await tryAutoRecovery();
 
 try {
-  await receiver.xGroupCreate('engine-stream', 'engine-group', '$', { MKSTREAM: true });
+  await receiver.xGroupCreate('engine-stream', 'engine-group', `${recoveredStreamId ? "$" : "0"}`, { MKSTREAM: true });
   console.log('engine queue with engine group is created');
 } catch (error) {
   if (error instanceof Error && error.message.includes('BUSYGROUP')) {
@@ -108,14 +108,14 @@ try {
   console.log('creating the response-stream');
 }
 
-// Snapshot every 10 minutes, trim streams periodically
+// Snapshot every 5 minutes, trim streams periodically
 setInterval(async () => {
   await pushSnapshot(lastProcessedStreamId);
   try {
     await receiver.xTrim('engine-stream', 'MAXLEN', 10000);
     await receiver.xTrim('response-stream', 'MAXLEN', 50000);
   } catch {}
-}, 10 * 60 * 1000);
+}, 1 * 60 * 1000);
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, dumping final snapshot...');

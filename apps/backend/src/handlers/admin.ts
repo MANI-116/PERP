@@ -25,10 +25,12 @@ export async function createMarket(
 
     console.log('market is created-', response);
 
-    responseManager.putRequest({
+    const res = await responseManager.putRequest({
       type: 'CREATE_MARKET',
       payload: { marketId: response.id },
     });
+
+    console.log('response from response manager-', res);
 
     res.status(200).send('market added successfully');
   } catch (error) {

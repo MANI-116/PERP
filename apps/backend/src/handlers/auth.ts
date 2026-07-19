@@ -10,6 +10,7 @@ export async function signup(req: Request, res: Response) {
 
   try {
     const parsedResponse = await signUpSchema.safeParseAsync(req.body);
+    
     if (!parsedResponse.success) {
       return res
         .status(400)

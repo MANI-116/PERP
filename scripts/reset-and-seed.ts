@@ -21,6 +21,9 @@ console.log('=== PerpX Reset & Seed ===\n');
 
 // 1. Flush Redis
 console.log('Flushing Redis...');
+// Flush the currently selected DB
+await client.flushDb();
+
 await client.flushAll();
 console.log('  Redis flushed\n');
 
@@ -37,96 +40,97 @@ console.log('  All tables truncated\n');
 // 3. Markets
 const markets = [
   {
-    marketId: '9fd3ef8c-f147-4076-8e96-d25417881f7e',
     symbol: 'BTC-PERP',
     name: 'BTC-PERP',
     slug: 'btc-perp',
-    scale: 1000000n,
-    markPrice: 65000000000n,
-    mmr: 50n,
-    takerRate: 10n,
-    makerRate: 5n,
+    scale: '1000000',
+    markPrice: '65000000000',
+    mmr: '50',
+    takerRate: '10',
+    makerRate: '5',
   },
   {
-    marketId: 'a665d60d-8592-4cbb-953e-fcb5d58afaa9',
     symbol: 'ETH-PERP',
     name: 'ETH-PERP',
     slug: 'eth-perp',
-    scale: 1000000n,
-    markPrice: 3500000000n,
-    mmr: 50n,
-    takerRate: 10n,
-    makerRate: 5n,
+    scale: '1000000',
+    markPrice: '3500000000',
+    mmr: '50',
+    takerRate: '10',
+    makerRate: '5',
   },
 ];
 
 console.log('Seeding markets into PostgreSQL + engine-stream...');
 for (const m of markets) {
-  await prisma.market.create({
-    data: {
-      id: m.marketId,
-      name: m.name,
-      symbol: m.symbol,
-      slug: m.slug,
-      scale: m.scale,
-      markPrice: m.markPrice,
-      takerRate: m.takerRate,
-      makerRate: m.makerRate,
-      mmr: m.mmr,
-    },
+  try {
+    const res = await fetch('http://localhost:3001/admin/market', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(m),
   });
+  if (!res.ok) {
+    console.error(`  Failed to create market ${m.symbol}: ${await res.text()}`);
+    continue;
+  }
+  const { id: marketId } = (await res.json()) as { id: string };
 
-  await client.xAdd('engine-stream', '*', {
-    type: 'CREATE_MARKET',
-    corelationId: `seed-mkt-${m.symbol}`,
-    payload: JSON.stringify({
-      marketId: m.marketId,
-      symbol: m.symbol,
-      markPrice: m.markPrice.toString(),
-      mmr: m.mmr.toString(),
-      takerRate: m.takerRate.toString(),
-      makerRate: m.makerRate.toString(),
-    }),
-  });
-  console.log(`  ${m.symbol.padEnd(10)} — id:${m.marketId.slice(0, 8)}…`);
+  console.log(`  ${m.symbol.padEnd(10)} — id:${marketId.slice(0, 8)}…`);  
+  } catch (error) {
+    console.log("error- occured-",error);
+    
+  }
+  
 }
 
 // 4. Users
 const users = [
-  { userId: '4d0ba56d-8b19-4bbb-9b56-dd682e3b34ca', username: 'alice', name: 'Alice', password: 'password123', credit: '1000000000000' },
-  { userId: 'ace5c514-a92c-4ad9-b677-2742a5c5911e', username: 'bob', name: 'Bob', password: 'password123', credit: '1000000000000' },
+  {
+    username: 'alice',
+    name: 'Alice',
+    password: 'password123',
+  
+  },
+  {
+    username: 'bob',
+    name: 'Bob',
+    password: 'password123',
+
+  },
 ];
 
 console.log('\nSeeding users into PostgreSQL + engine-stream...');
 for (const u of users) {
-  const hashed = await Bun.password.hash(u.password);
-  await prisma.user.create({
-    data: {
-      userId: u.userId,
-      username: u.username,
-      name: u.name,
-      password: hashed,
-    },
-  });
-
-  await client.xAdd('engine-stream', '*', {
-    type: 'CREATE_USER',
-    corelationId: `seed-user-${u.username}`,
-    payload: JSON.stringify({ userId: u.userId }),
-  });
-  console.log(`  CREATE_USER — ${u.username.padEnd(8)} (${u.userId.slice(0, 8)}…)`);
+  try {
+    
+    const res = await fetch('http://localhost:3001/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: u.name,
+        username: u.username,
+        password: u.password,
+      }),
+    });
+    if (!res.ok) {
+      console.error(
+        `  Failed to create user ${u.username}: ${await res.text()}`,
+      );
+      continue;
+    }
+    const { userId } = (await res.json()) as { userId: string };
+  
+    console.log(
+      `  CREATE_USER — ${u.username.padEnd(8)} (${userId.slice(0, 8)}…)`,
+    );
+  } catch (error) {
+    console.log("error- while creating the user",error);
+    
+  }
 }
 
-// 5. Ramp users
-console.log('\nRamping users with collateral...');
-for (const u of users) {
-  await client.xAdd('engine-stream', '*', {
-    type: 'RAMP_USER',
-    corelationId: `seed-ramp-${u.username}`,
-    payload: JSON.stringify({ userId: u.userId, credit: u.credit }),
-  });
-  console.log(`  RAMP_USER  — ${u.username.padEnd(8)} +${u.credit}`);
-}
+console.log('\nSeeding users into PostgreSQL + engine-stream is done');
+
 
 console.log('\n=== Done ===');
 console.log(`  Markets: ${markets.length}`);
@@ -134,4 +138,4 @@ console.log(`  Users:   ${users.length}`);
 console.log('\nEvents buffered in engine-stream. Restart engine to process.');
 
 await client.quit();
-await prisma.$disconnect();
+

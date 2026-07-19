@@ -5,7 +5,7 @@ export const SideSchema = z.enum(['SHORT', 'LONG']);
 
 export const signUpSchema = z.object({
   name: z.string().min(1).max(90),
-  username: z.string().min(4).max(25),
+  username: z.string().min(1).max(25),
   password: z.string().min(6).max(30),
 });
 

@@ -12,6 +12,7 @@
   "dependencies": {
     "@repo/types": "*",
     "@repo/engine-package":"*",
-    "redis": "^5.12.1"
+    "redis": "^5.12.1",
+    "@repo/db":"*"
   }
 }

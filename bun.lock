@@ -68,6 +68,7 @@
     "apps/engine": {
       "name": "engine",
       "dependencies": {
+        "@repo/db": "*",
         "@repo/engine-package": "*",
         "@repo/types": "*",
         "redis": "^5.12.1",

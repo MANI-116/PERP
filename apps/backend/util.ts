@@ -110,6 +110,7 @@ type RedisClientType = ReturnType<typeof createClient>;
     try {
        const corelationId = generateId();
        const resolverPromise= new Promise<any>((res, rej) => {
+
         console.log("setting the resolver for the corelationId-",corelationId);
         this.requestMap.set(corelationId, res);
         console.log('requespmap wether have res or not-',this.requestMap.has(corelationId));
@@ -120,7 +121,7 @@ type RedisClientType = ReturnType<typeof createClient>;
             this.requestMap.delete(corelationId);
             rej(new Error('engine response timeout'));
           }
-        }, 30000);
+        }, 3000);
       });
       console.log('messsage is added to the queue');
       if (request.type === 'CREATE_ORDER') {
