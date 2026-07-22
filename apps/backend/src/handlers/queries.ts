@@ -64,7 +64,7 @@ export async function getOpenOrders(req: AuthRequest, res: Response) {
     }
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
-        where: { userId, marketId, state: { in: ['OPEN'] } },
+        where: { userId, marketId, state: { in: ['OPEN','FILLED'] } },
         orderBy: { createdAt: 'desc' },
         skip,
         take,

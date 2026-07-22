@@ -14,11 +14,10 @@ const orderSnapshotSchema = z.object({
   status: z.custom<OrderStatus>(),
   filled: z.string().transform((p) => BigInt(p)),
   initialMargin: z.string().transform((p) => BigInt(p)),
-  maintenanceMargin: z.string().transform((p) => BigInt(p)),
+  originalOpeningQty: z.string().transform((p) => BigInt(p)),
 });
 
 export class Order implements GiveSnapshot, Id {
-  public maintenanceMargin: bigint;
   public initialMargin: bigint;
   public filled: bigint = 0n;
   public status: OrderStatus = 'OPEN';
@@ -32,11 +31,11 @@ export class Order implements GiveSnapshot, Id {
     public price: bigint,
     public leverage: bigint,
     public type: OrderType,
+    public originalOpeningQty: bigint,
   ) {
     this.id = orderId;
     if (this.orderId === '' || this.orderId === undefined) throw new Error('orderId is needed');
     this.initialMargin = (this.qty * this.price) / this.leverage;
-    this.maintenanceMargin = (this.qty * this.price * 5n) / 1000n;
   }
   giveSnapshot() {
     return JSON.stringify({
@@ -51,7 +50,7 @@ export class Order implements GiveSnapshot, Id {
       status: this.status,
       filled: this.filled.toString(),
       initialMargin: this.initialMargin.toString(),
-      maintenanceMargin: this.maintenanceMargin.toString(),
+      originalOpeningQty: this.originalOpeningQty.toString(),
     });
   }
   static createFromSnapshot(orderSnapshotString: string): Order | null {
@@ -70,13 +69,12 @@ export class Order implements GiveSnapshot, Id {
       type,
       initialMargin,
       status,
-      maintenanceMargin,
+      originalOpeningQty,
       filled,
     } = parseData.data;
-    const order = new Order(orderId, userId, assetId, qty, side, price, leverage, type);
+    const order = new Order(orderId, userId, assetId, qty, side, price, leverage, type, originalOpeningQty);
     order.status = status;
     order.initialMargin = initialMargin;
-    order.maintenanceMargin = maintenanceMargin;
     order.filled = filled;
     return order;
   }

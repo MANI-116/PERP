@@ -221,7 +221,7 @@ export class OrderBook{
                 if(totalQuantity === 0) return;
                 levels.set(price,totalQuantity);
                  this.askLevels.push(price);
-                 this.askLevels.sort();
+                 this.askLevels.sort((a,b)=>a-b);
                   this.totalAsks += totalQuantity;
                 
                 const length = this.askLevels.length;
@@ -234,7 +234,7 @@ export class OrderBook{
 
                     levels.delete(lastLevel);
                     this.askLevels.pop();
-                    this.askLevels.sort();
+                    this.askLevels.sort((a,b)=>a-b);
                 
 
 
@@ -322,10 +322,10 @@ export class OrderBook{
                 this.priceLevelsData.delete(price);
                 //remove level from the bidLevels
                 const index = this.bidLevels.findIndex((value)=>value===price);
-                this.bidLevels.splice(index,1);
-
-                return false;
-              }
+                 this.bidLevels.splice(index,1);
+ 
+                 return true;
+               }
               
               this.addBidLevel(price,totalQuantity);
              
@@ -342,12 +342,12 @@ export class OrderBook{
                 //remove level:
                 this.priceLevelsData.delete(price);
                 //remove level from the bidLevels
-                const index = this.askLevels.findIndex((value)=>value===price);
-                this.askLevels.splice(index,1);
-              
-
-                return false;
-              }
+                 const index = this.askLevels.findIndex((value)=>value===price);
+                 this.askLevels.splice(index,1);
+               
+ 
+                 return true;
+               }
               this.addAskLevel(price,totalQuantity);  
             }
             return true;

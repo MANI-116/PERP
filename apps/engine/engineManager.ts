@@ -40,7 +40,17 @@ function deleteOrder(orderId: string, marketId: string): DeleteOrderResponse {
   if (!market) {
     return { success: false, error: 'orderbook not found', orderId, marketId };
   }
-  const response = market.orderbook.deleteOrder(orderId);
+  const response = market.orderbook.deleteOrder(orderId) as any;
+  if (response.success && response.order) {
+    const order = response.order;
+    const remainingQty = BigInt(order.qty) - BigInt(order.filled);
+    const originalOpeningQty = BigInt(order.originalOpeningQty);
+    const unfilledOpeningQty = remainingQty < originalOpeningQty ? remainingQty : originalOpeningQty;
+    if (unfilledOpeningQty > 0n) {
+      const refundAmount = (unfilledOpeningQty * BigInt(order.price)) / BigInt(order.leverage);
+      userManager.unlockAmount(order.userId, refundAmount);
+    }
+  }
   return { ...response, orderId, marketId };
 }
 

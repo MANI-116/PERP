@@ -137,6 +137,17 @@ export class UserManager {
     return false;
   }
 
+  unlockAmount(userId: string, amount: bigint) {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    if (user.collateral.locked >= amount) {
+      user.collateral.locked -= amount;
+      user.collateral.available += amount;
+      return true;
+    }
+    return false;
+  }
+
   debitLockAmount(userId: string, amount: bigint) {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'user not found', code: 404 };

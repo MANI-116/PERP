@@ -121,7 +121,7 @@ type RedisClientType = ReturnType<typeof createClient>;
             this.requestMap.delete(corelationId);
             rej(new Error('engine response timeout'));
           }
-        }, 3000);
+        }, 10000);
       });
       console.log('messsage is added to the queue');
       if (request.type === 'CREATE_ORDER') {

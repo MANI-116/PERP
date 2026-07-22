@@ -72,12 +72,11 @@ export class Dll<T extends GiveSnapshot & Id> {
 
   giveSnapshot() {
     const snapshots: string[] = [];
-    let current = this.head;
-    while (current.right != null) {
+    let current: Node<T> | null = this.head;
+    while (current !== null) {
       snapshots.push(current.value.giveSnapshot());
       current = current.right;
     }
-    snapshots.push(current.value.giveSnapshot());
 
     return JSON.stringify({ snapshots });
   }

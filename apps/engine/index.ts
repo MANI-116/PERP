@@ -165,7 +165,7 @@ while (true) {
       'engine-group',
       'engine',
       [{ key: 'engine-stream', id: '>' }],
-      { BLOCK: 10000 },
+      { BLOCK: 0},
     )) as RedisResponse[];
     console.log('response form the stream--', response);
     if (response === null) continue;

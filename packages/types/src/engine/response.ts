@@ -47,7 +47,6 @@ export interface OrderFilledResponse extends TransmitOrder{
    
     matchedOrders:TransmitMatchOrder[],
     leverage:string,
-    maintenanceMargin:string,
     initialMargin:string,
     tax:string,
     updates:{uid:number,asks:string[][],bids:string[][]}

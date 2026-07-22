@@ -16,8 +16,9 @@ type SnapshotFactory<T> = (valueSnapshotStr: string) => T | null;
 const orderSnapshotSchema = z.object({
   asks: z.array(z.object({ price: z.string().transform((p) => BigInt(p)), levelSnapshotString: z.string() })),
   bids: z.array(z.object({ price: z.string().transform((p) => BigInt(p)), levelSnapshotString: z.string() })),
-  askTree: z.array(z.string().transform((p) => BigInt(p))),
-  bidTree: z.array(z.string().transform((p) => BigInt(p))),
+   askTree: z.array(z.string().transform((p) => BigInt(p))),
+   bidTree: z.array(z.string().transform((p) => BigInt(p))),
+   updateId: z.number(),
 });
 
 export class OrderBook {
@@ -47,13 +48,13 @@ export class OrderBook {
     }
 
     let bids: { price: string; levelSnapshotString: string }[] = [];
-    for (const [price, priceLevelData] of this.bids.entries()) {
-      const entry = { price: price.toString(), levelSnapshotString: priceLevelData.giveSnapshot() };
-      bids.push(entry);
-    }
-
-    return JSON.stringify({ asks, bids, askTree, bidTree });
-  }
+     for (const [price, priceLevelData] of this.bids.entries()) {
+       const entry = { price: price.toString(), levelSnapshotString: priceLevelData.giveSnapshot() };
+       bids.push(entry);
+     }
+ 
+    return JSON.stringify({ asks, bids, askTree, bidTree, updateId: this.updateId });
+   }
 
   static createLevelMap<T extends Qty & GiveSnapshot & Id>(
     priceLevel: { price: bigint; levelSnapshotString: string },
@@ -123,10 +124,11 @@ export class OrderBook {
     orderbook.asks = asks;
     orderbook.bids = bids;
     orderbook.askTree = askTree;
-    orderbook.bidTree = bidTree;
-    orderbook.ordersRef = ordersRef;
-
-    return orderbook;
+     orderbook.bidTree = bidTree;
+     orderbook.ordersRef = ordersRef;
+     orderbook.updateId = orderbookSnapshot.updateId;
+ 
+     return orderbook;
   }
   getUpdateId(){
     return this.updateId;
@@ -148,7 +150,7 @@ export class OrderBook {
       asks: order.side === 'SHORT' ? [[order.price.toString(), totalQty.toString()]] : [[]],
     };
 
-    return { success: true, updates };
+    return { success: true, updates, order: order };
   }
 
   addAskOrder(order: Order) {
@@ -193,6 +195,7 @@ export class OrderBook {
   removeAskOrder(order: Order) {
     //we need to remove the orderRef
     //we need to remove the level if dll have only one order also
+    //we need to remove the the price from ask tree also
     const priceLevel = order.price;
     const priceLevelData = this.asks.get(priceLevel);
     if (priceLevelData === undefined) {
@@ -206,8 +209,10 @@ export class OrderBook {
     const response = priceLevelData.removeNode(orderNode);
     if (!response.success) {
       //we nee to remove the price level
-      this.asks.delete(priceLevel);
-      console.log('removed the price Level');
+     const levelDelete =  this.asks.delete(priceLevel);
+     const treeDelete = this.askTree.removePrice(order.price);
+      
+      console.log('removed Levelstatus:',levelDelete," removed TreeStatus:",treeDelete);
     }
     this.ordersRef.delete(order.orderId);
     return { success: 'true', message: 'removed order' };
@@ -216,6 +221,7 @@ export class OrderBook {
   removeBuyOrder(order: Order) {
     //we need to remove the orderRef
     //we need to remove the level if dll have only one order also
+    //we need to remove from the bid trees also
     const priceLevel = order.price;
     const priceLevelData = this.bids.get(priceLevel);
     if (priceLevelData === undefined) {
@@ -229,8 +235,9 @@ export class OrderBook {
     const response = priceLevelData.removeNode(orderNode);
     if (!response.success) {
       //we nee to remove the price level
-      this.bids.delete(priceLevel);
-      console.log('removed the price Level');
+     const levelDelete = this.bids.delete(priceLevel);
+      const treeDelete = this.bidTree.removePrice(order.price)
+      console.log('removed Levelstatus:',levelDelete," removed TreeStatus:",treeDelete);
     }
     this.ordersRef.delete(order.orderId);
     return { success: 'true', message: 'removed order' };
@@ -239,10 +246,11 @@ export class OrderBook {
     const { qty, price } = order;
 
     const matchedOrders: MatchOrder[] = [];
-    //get the pricelevel for asks
-    let opSidelevelData = order.side === 'LONG' ? this.asks.get(order.price) : this.bids.get(order.price);
-    if (opSidelevelData === undefined) {
-      //no opposite price level present for the asset ,so put order in this
+
+    const executionPrices = order.side === "LONG" ? this.askTree.getBestAsks(price).reverse() :this.bidTree.getBestBids(price).reverse();
+
+    if(executionPrices.length === 0){
+      
       order.side === 'LONG' ? this.addBidOrder(order) : this.addAskOrder(order);
       // read the actual total quantity at this price level after adding
       const levelAfterAdd = order.side === 'LONG' ? this.bids.get(price) : this.asks.get(price);
@@ -259,90 +267,113 @@ export class OrderBook {
           updates,
         },
       };
+
     }
 
-    //if level avialable ---> we can match the order and execute the order --->add to position or open new position
-    const ordersLength = opSidelevelData.list.length;
+    const updates:{uid:number,asks:string[][],bids:string[][]} = {
+      uid:-2,
+      asks:[],
+      bids:[]
+    }
+    //get the pricelevel for oppsite side of the limit order, Limit order of Buy fetch ask and vice versa
+    console.log("execution prices-",executionPrices);
+    for( const executionPrice of executionPrices){
 
-    for (let index = 0; index < ordersLength; index++) {
-      const requiredQty = order.qty - order.filled;
-      const matchedOrder = opSidelevelData.list.getFirstOrder().value;
-      const availablleQty = matchedOrder.qty - matchedOrder.filled;
-      let filled = 0n;
-      if (requiredQty <= availablleQty) {
-        matchedOrder.filled += requiredQty;
-        order.filled += requiredQty;
-        filled = requiredQty;
-      } else {
-        matchedOrder.filled += availablleQty;
-        order.filled += availablleQty;
-        filled = availablleQty;
+      console.log("executing price-",executionPrice);
+      
+      let opSidelevelData = order.side === 'LONG' ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
+      if(!opSidelevelData){
+        throw new Error("[critical]- data inconsitent ,price exist in trees but not in level maps")
       }
-      matchedOrders.push({
-        userId: matchedOrder.userId,
-        price: matchedOrder.price,
-        leverage: matchedOrder.leverage,
-        orderId: matchedOrder.orderId,
-        qtyTransfered: filled,
-        side: matchedOrder.side,
-        timestamp: Date.now().toString(),
-        tax: 0n,
-      });
-      if (matchedOrder.filled === matchedOrder.qty) {
-        //order is filled completely so the order is removed from the pricelevel
-        matchedOrder.side === 'SHORT' ? this.removeAskOrder(matchedOrder) : this.removeBuyOrder(matchedOrder);
-      }
-      if (order.filled === order.qty) {
-        //changes happend in the oppist side
-        let updates = {
-          uid:this.updateId++,
-          bids: matchedOrder.side === 'LONG' ? [[price.toString(), opSidelevelData.totalQty.toString()]] : [[]],
-          asks: matchedOrder.side === 'SHORT' ? [[price.toString(), opSidelevelData.totalQty.toString()]] : [[]],
-        };
+      const ordersLength = opSidelevelData.list.length;
 
-        return {
-          event: 'ORDER_FILLED',
-          payload: {
-            filled: order.filled,
-            matchedOrders,
-            updates,
-          },
-        };
+      //match the resting limit orders in FIFO order
+      let currentOrderNode: Node<Order> | null = opSidelevelData.list.getFirstOrder();
+      for (let index = 0; index < ordersLength; index++) {
+        if (!currentOrderNode) break;
+        const matchedOrder = currentOrderNode.value;
+        const nextNode: Node<Order> | null = currentOrderNode.right;
+
+        if (matchedOrder.userId === order.userId) {
+          currentOrderNode = nextNode;
+          continue;
+        }
+  
+        const requiredQty = order.qty - order.filled;
+        const availablleQty = matchedOrder.qty - matchedOrder.filled;
+        let filled = requiredQty <= availablleQty ? requiredQty : availablleQty;
+  
+        matchedOrder.filled += filled;
+        opSidelevelData.totalQty -= filled;
+        order.filled += filled;
+      
+        matchedOrders.push({
+          userId: matchedOrder.userId,
+          price: executionPrice,
+          leverage: matchedOrder.leverage,
+          orderId: matchedOrder.orderId,
+          qtyTransfered: filled,
+          side: matchedOrder.side,
+          timestamp: Date.now().toString(),
+          tax: 0n,
+        });
+
+        //after every matchedorder fullfilled resting order converts to position, remove from the book and if last level add update to th updates
+  
+        if (matchedOrder.filled === matchedOrder.qty) {
+          //matched order is fullfilled from remove from the book
+          matchedOrder.side === 'SHORT' ? this.removeAskOrder(matchedOrder) : this.removeBuyOrder(matchedOrder);
+          //we need to update if level itself removed
+          const priceLevel = matchedOrder.side === "SHORT" ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
+          if(priceLevel === undefined){
+            //level is removed need to update
+            
+            matchedOrder.side === "SHORT" ? updates.asks.push([executionPrice.toString(),"0"]): updates.bids.push([executionPrice.toString(),"0"]);
+          }
+          
+        }
+
+        //incoming order consumed some qty fron the level so add update of the level
+        if (order.filled === order.qty) {
+          updates.uid = this.updateId++;
+          matchedOrder.side === 'SHORT' ? updates.asks.push( [executionPrice.toString(), opSidelevelData.totalQty.toString()]) :updates.bids.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
+
+          return {
+            event: 'ORDER_FILLED',
+            payload: {
+              filled: order.filled,
+              matchedOrders,
+              updates,
+            },
+          };
+        }
+        
+        currentOrderNode = nextNode;
       }
+
+
     }
 
-    if (order.filled != order.qty) {
+    //some qty of limit order not matched place it in the book
+  
       //place in the order book:
       order.side === 'LONG' ? this.addBidOrder(order) : this.addAskOrder(order);
-    }
+      const level = order.side === "LONG" ? this.bids.get(price) : this.asks.get(price);
+      let totalQuantity = level?.totalQty;
+      if(!totalQuantity) throw new Error("[critical] after adding order at price P, the price levleMap total quanitity is not updated");
+      
+      level!.totalQty -= order.filled;
+      totalQuantity = totalQuantity - order.filled;
 
-    //now we have maker updates and taker updates-->is it really, we matched opside sum executed--> opside level become 0 and order qty raise in taker account
-    //asks and bids for updates
-    //taker -> asks and bids[[price,qty]]
-    //maker -> asks and bids [[price,0]]
-    let bids: string[][] = [];
-    let asks: string[][] = [];
-    if (order.side === 'SHORT') {
-      //taker have some ask qty:
-      const leveldata = this.asks.get(order.price)!;
-      const qty = leveldata.totalQty.toString();
-      asks.push([price.toString(), qty]);
-      bids.push([price.toString(), opSidelevelData.totalQty.toString()]);
-    } else {
-      const leveldata = this.bids.get(order.price)!;
-      const qty = leveldata.totalQty.toString();
-      bids.push([price.toString(), qty]);
-      asks.push([price.toString(), opSidelevelData.totalQty.toString()]);
-    }
+      order.side === "LONG" ? updates.bids.push([price.toString(),totalQuantity.toString()]) : updates.asks.push([price.toString(),totalQuantity.toString()]);
+
+      updates.uid = this.updateId++;
+  
     return {
       event: 'ORDER_FILLED_PARTIALLY',
       payload: {
         filled: order.filled,
-        updates: {
-          uid:this.updateId++,
-          asks,
-          bids,
-        },
+        updates,
         matchedOrders,
       },
     };
@@ -350,16 +381,18 @@ export class OrderBook {
   matchMarketOrder(order: Order) {
     const { qty, price, side, userId } = order;
 
-    let totalLevels = order.side === 'SHORT' ? this.askTree.getLength() : this.bidTree.getLength();
+    const executionPricesStr = order.side === "LONG" ? this.askTree.clone() : this.bidTree.clone();
+    const executionPrices = executionPricesStr.map(p => BigInt(p)).reverse();
+
     const matchedOrders: MatchOrder[] = [];
     let bids: string[][] = [];
     let asks: string[][] = [];
-    for (let i = 0; i < totalLevels; i++) {
-      //get the pricelevel from opposite side
-      const level = order.side === 'SHORT' ? this.bidTree.getTop() : this.askTree.getMinAsk();
-      if (level === undefined) {
-        return rejectOrderResponse('no counter offers', { ...order, marketId: order.assetId });
-      }
+
+    if (executionPrices.length === 0) {
+      return rejectOrderResponse('no counter offers', { ...order, marketId: order.assetId });
+    }
+
+    for (const level of executionPrices) {
       let opSidelevelData = order.side === 'LONG' ? this.asks.get(level) : this.bids.get(level);
       if (opSidelevelData === undefined) {
         //no opposite price level present for the asset ,so reject he market Order
@@ -369,11 +402,22 @@ export class OrderBook {
 
       //ask level avialable ---> we can match the order and execute the order --->add to position or open new position
       const ordersLength = opSidelevelData.list.length;
+      let currentOrderNode: Node<Order> | null = opSidelevelData.list.getFirstOrder();
 
       for (let index = 0; index < ordersLength; index++) {
+        if (!currentOrderNode) break;
+        const matchedOrder = currentOrderNode.value;
+        const nextNode: Node<Order> | null = currentOrderNode.right;
+
+        if (matchedOrder.userId === order.userId) {
+          currentOrderNode = nextNode;
+          continue;
+        }
+
         const requiredQty = order.qty - order.filled;
-        const matchedOrder = opSidelevelData.list.getFirstOrder().value;
         const availablleQty = matchedOrder.qty - matchedOrder.filled;
+
+        
 
         //executing the order
         if (requiredQty <= availablleQty) {
@@ -422,6 +466,8 @@ export class OrderBook {
             },
           };
         }
+        
+        currentOrderNode = nextNode;
       }
       if (order.side === 'SHORT') {
         bids.push([price.toString(), opSidelevelData.totalQty.toString()]);
