@@ -362,10 +362,7 @@ describe("Market", () => {
     const market = createMarket();
 
     const tax =
-      market.calculatetax(
-        100000n,
-        "maker"
-      );
+      market.calculatetax(100000n, "maker");
 
     expect(tax).toBe(50n);
   });
@@ -374,10 +371,7 @@ describe("Market", () => {
     const market = createMarket();
 
     const tax =
-      market.calculatetax(
-        100000n,
-        "taker"
-      );
+      market.calculatetax(100000n, "taker");
 
     expect(tax).toBe(100n);
   });

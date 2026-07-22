@@ -193,7 +193,8 @@ export class MarketManager{
 export class OrderBook{
   public askLevels:number[]
   public bidLevels:number[]
-  public priceLevelsData:Map<number,number>;
+  public askLevelsData:Map<number,number>;
+  public bidLevelsData:Map<number,number>;
   public totalAsks:number
   public totalBids:number
   public snapshotUid:number
@@ -201,7 +202,8 @@ export class OrderBook{
   constructor(){
     this.askLevels = [];
     this.bidLevels = [];
-    this.priceLevelsData = new Map<number,number>();
+    this.askLevelsData = new Map<number,number>();
+    this.bidLevelsData = new Map<number,number>();
     this.totalAsks=0;
     this.totalBids=0;
     this.snapshotUid=0;
@@ -213,7 +215,7 @@ export class OrderBook{
   }
   addAskLevel(price:number,totalQuantity:number){
       console.log('add asklevel-',price,":",totalQuantity);
-      const levels = this.priceLevelsData   
+      const levels = this.askLevelsData   
       
               const quantity =  levels.get(price);
               if(quantity === undefined){
@@ -262,7 +264,7 @@ export class OrderBook{
   addBidLevel(price:number,totalQuantity:number){
               console.log('add bidlevel-',price,":",totalQuantity);
       
-              const levels = this.priceLevelsData
+              const levels = this.bidLevelsData
             
               const quantity =  levels.get(price);
               if(quantity === undefined){
@@ -311,44 +313,19 @@ export class OrderBook{
         }
             this.snapshotUid = update.uid;
 
-            if(update.bids.length > 0 && update.bids[0].length > 0){
-              const price = Number(update.bids[0][0]);
-              const totalQuantity = Number(update.bids[0][1]); 
-
-              if(totalQuantity === 0){
-                const prevQuantity = this.priceLevelsData.get(price)!;
-                this.totalBids -= prevQuantity;
-                //remove level:
-                this.priceLevelsData.delete(price);
-                //remove level from the bidLevels
-                const index = this.bidLevels.findIndex((value)=>value===price);
-                 this.bidLevels.splice(index,1);
- 
-                 return true;
-               }
-              
-              this.addBidLevel(price,totalQuantity);
-             
+            for(let i=0; i<update.bids.length; i++) {
+              if (update.bids[i].length > 0) {
+                const price = Number(update.bids[i][0]);
+                const totalQuantity = Number(update.bids[i][1]); 
+                this.addBidLevel(price,totalQuantity);
+              }
             } 
-            if(update.asks.length > 0 && update.asks[0].length > 0){
-              const price = Number(update.asks[0][0]);
-              const totalQuantity = Number(update.asks[0][1]);
-
-              console.log('add asklevel-',price,":",totalQuantity);
-              
-              if(totalQuantity === 0){
-                const prevQuantity = this.priceLevelsData.get(price)!;
-                this.totalAsks -= prevQuantity;
-                //remove level:
-                this.priceLevelsData.delete(price);
-                //remove level from the bidLevels
-                 const index = this.askLevels.findIndex((value)=>value===price);
-                 this.askLevels.splice(index,1);
-               
- 
-                 return true;
-               }
-              this.addAskLevel(price,totalQuantity);  
+            for(let i=0; i<update.asks.length; i++) {
+              if (update.asks[i].length > 0) {
+                const price = Number(update.asks[i][0]);
+                const totalQuantity = Number(update.asks[i][1]);
+                this.addAskLevel(price,totalQuantity);  
+              }
             }
             return true;
   }
@@ -364,7 +341,8 @@ function cloneOrderBook(book: OrderBook): OrderBook {
   const clone = new OrderBook();
   clone.askLevels = [...book.askLevels];
   clone.bidLevels = [...book.bidLevels];
-  clone.priceLevelsData = new Map(book.priceLevelsData);
+  clone.askLevelsData = new Map(book.askLevelsData);
+  clone.bidLevelsData = new Map(book.bidLevelsData);
   clone.totalAsks = book.totalAsks;
   clone.totalBids = book.totalBids;
   clone.snapshotUid = book.snapshotUid;

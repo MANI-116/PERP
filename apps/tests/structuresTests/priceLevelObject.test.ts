@@ -1,21 +1,10 @@
 import { describe, expect, it } from "bun:test";
+(BigInt.prototype as any).toJSON = function() { return this.toString(); };
 
 import { Order, PriceLevelObject } from "@repo/engine-package";
 
-function createOrder(
-  id: string,
-  qty: bigint = 10n
-) {
-  return new Order(
-    id,
-    "user-1",
-    "btc-usdt",
-    qty,
-    "LONG",
-    100n,
-    10n,
-    "LIMIT"
-  );
+function createOrder(id: string, qty: bigint = 10n, price: bigint = 100n) {
+  return new Order(id, "user-1", "btc-usdt", qty, "LONG", price, 10n, "LIMIT", qty);
 }
 
 describe("PriceLevel Snapshot Recovery", () => {

@@ -197,8 +197,8 @@ export class Market {
     removedPrices.forEach((p) =>
       side === 'SHORT' ? this.orderbook.bidTree.addPrice(p) : this.orderbook.askTree.addPrice(p),
     );
-    if (filled === 0n) {
-      return 0n;
+    if (filled < qty) {
+      return 0n; // Insufficient liquidity
     }
     let estimatedPrice = notionalSize / filled;
     if (estimatedPrice === undefined) return 0n;

@@ -369,6 +369,16 @@ export class OrderBook {
 
       updates.uid = this.updateId++;
   
+    if (order.filled === 0n) {
+      return {
+        event: 'ORDER_ACCEPTED',
+        payload: {
+          filled: order.filled,
+          updates,
+        },
+      };
+    }
+
     return {
       event: 'ORDER_FILLED_PARTIALLY',
       payload: {
@@ -475,6 +485,11 @@ export class OrderBook {
         asks.push([price.toString(), opSidelevelData.totalQty.toString()]);
       }
     }
+    
+    if (order.filled === 0n) {
+      return rejectOrderResponse('no counter offers', { ...order, marketId: order.assetId });
+    }
+
     return {
       event: 'ORDER_FILLED_PARTIALLY' as const,
       payload: {

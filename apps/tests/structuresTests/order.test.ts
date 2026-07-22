@@ -1,15 +1,6 @@
 import { Order } from "@repo/engine-package";
 
-const order = new Order(
-    "order-1",
-    "ravi",
-    "sol",
-    20n,
-    "LONG",
-    100n,
-    2n,
-    "LIMIT"
-);
+const order = new Order("order-1", "ravi", "sol", 20n, "LONG", 100n, 2n, "LIMIT", 20n);
 
 order.filled = 5n;
 order.status = "OPEN";
@@ -21,7 +12,7 @@ console.log(snapshot);
 
 const recovered =
     Order.createFromSnapshot(
-        JSON.parse(snapshot).orderSnapshotString
+        snapshot
     );
 
 console.log("recovered");
@@ -44,7 +35,7 @@ console.log(
     recovered.status === order.status,
     recovered.filled === order.filled,
     recovered.initialMargin === order.initialMargin,
-    recovered.maintenanceMargin === order.maintenanceMargin
+    recovered.originalOpeningQty === order.originalOpeningQty
 );
 
 console.log("order snapshot test passed");

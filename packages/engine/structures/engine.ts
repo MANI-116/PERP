@@ -148,15 +148,15 @@ export class Engine {
   handleBankRuptcy(position: string, amount: bigint) {
     console.log("exchange balance:",this.exchangeMarketBalance);
     console.log("handling bankruptsy-",amount);
-    this.exchangeMarketBalance -= amount;
+    this.exchangeMarketBalance += amount;
     if (this.exchangeMarketBalance < 0) {
       console.log("handling ADL", this.exchangeMarketBalance);
       //TODO ---> perform ADL
     }
   }
 
-  matchOrderExecution(makerOrder: MatchOrder, market: Market) {
-
+  matchOrderExecution(makerOrder: MatchOrder, market: Market): bigint {
+    let debitedAmount = 0n;
 
     const response = this.userManager.getPosition(makerOrder.userId, market.marketId);
     if (!response.success && response.error === 'user not found') {
@@ -171,6 +171,7 @@ export class Engine {
       if (!debitRes.success) {
         throw new Error('locked balance logic got skewed');
       }
+      debitedAmount = initialMargin;
 
       const { positionId } = market.createPosition(
         makerOrder.userId,
@@ -213,8 +214,8 @@ export class Engine {
 
       //update postion logic
       const getData = market.getData(makerPositionId, { keys: ['avgPrice', 'side', 'initialMargin', 'qty', 'id'] });
-      if (!getData.success) return getData;
-      if (!getData.data) return getData;
+      if (!getData.success) throw new Error('market position data fetch failed');
+      if (!getData.data) throw new Error('market position data missing');
       const { initialMargin: makerMargin, side: makerSide, qty: makerQty, avgPrice: makerPrice } = getData.data;
 
       market.updatePositions(
@@ -236,6 +237,7 @@ export class Engine {
         if (!debitRes.success) {
           throw new Error('locked balance logic got skewed');
         }
+        debitedAmount = extraMargin;
       } else {
 
         //opposite side update
@@ -244,10 +246,6 @@ export class Engine {
         if (makerQty >= makerOrder.qtyTransfered) {
              //no reversal
            const initialMargin = (makerOrder.price * makerOrder.qtyTransfered) / makerOrder.leverage;
-            const debitRes = this.userManager.debitLockAmount(makerOrder.userId, initialMargin);
-            if (!debitRes.success) {
-              throw new Error('locked balance logic got skewed');
-            }   
              
           const direction = makerSide === 'SHORT' ? -1n : 1n;
           const realizedPnL = (makerOrder.price - makerPrice) * makerOrder.qtyTransfered * direction;
@@ -255,9 +253,9 @@ export class Engine {
           const settlementAmount = releasedMargin + realizedPnL;
           if (settlementAmount < 0) {
             this.handleBankRuptcy(makerPositionId, settlementAmount);
-            
+          } else if (settlementAmount > 0n) {
+            this.userManager.rampUser(makerOrder.userId, settlementAmount);
           }
-          this.userManager.rampUser(makerOrder.userId, settlementAmount);
         } else {
 
           //reversal
@@ -269,15 +267,16 @@ export class Engine {
           const settlementAmount = releasedMargin + realizedPnL;
           if (settlementAmount < 0) {
             this.handleBankRuptcy(makerPositionId, settlementAmount);
-            
+          } else if (settlementAmount > 0n) {
+            this.userManager.rampUser(makerOrder.userId, settlementAmount);
           }
-          this.userManager.rampUser(makerOrder.userId, settlementAmount);
           const openingQty = makerOrder.qtyTransfered - makerQty;
           const initialMargin = (openingQty * makerOrder.price) / makerOrder.leverage;
           const debitRes = this.userManager.debitLockAmount(makerOrder.userId, initialMargin);
           if (!debitRes.success) {
             throw new Error('locked balance logic got skewed');
           }
+          debitedAmount = initialMargin;
           const { positionId } = market.createPosition(
             makerOrder.userId,
             openingQty,
@@ -289,12 +288,13 @@ export class Engine {
         }
       }
     }
+    return debitedAmount;
   }
 
   lockMargin(
     payload: CreateOrderRequest,
     market: Market,
-  ): { success: false; error: string } | { success: true; message: string; openingQty: bigint } {
+  ): { success: false; error: string } | { success: true; message: string; openingQty: bigint; lockedAmount: bigint } {
 
     if (payload.leverage <= 0n) {
       return { success: false, error: 'leverage must be greater than 0' };
@@ -320,7 +320,7 @@ export class Engine {
         let positionSize = 0n;
         if (payload.type === 'MARKET') {
           const estimatedPrice = market.calculateEstimatedPrice(payload.qty, payload.side);
-          if (estimatedPrice === 0n) return { success: false, error: 'unable to lock the balace' };
+          if (estimatedPrice === 0n) return { success: false, error: 'insufficient liquidity for market order' };
           if (estimatedPrice === undefined) return { success: false, error: 'unable to get the estimated price' };
           positionSize = payload.qty * estimatedPrice;
         } else {
@@ -330,17 +330,26 @@ export class Engine {
         if (!this.userManager.lockAmount(payload.userId, initialMargin)) {
           return { success: false, error: 'does not have enough balace' };
         }
-        return { success: true, message: 'locked the margin', openingQty: payload.qty };
+        return { success: true, message: 'locked the margin', openingQty: payload.qty, lockedAmount: initialMargin };
       } else {
         const openingQty = payload.qty - positionQty;
         let initialMargin = 0n;
         if (openingQty > 0n) {
-           initialMargin = (openingQty * payload.price) / payload.leverage;
-           if (!this.userManager.lockAmount(payload.userId, initialMargin)) {
-             return { success: false, error: 'does not have enough balace' };
-           }
+          let positionSize = 0n;
+          if (payload.type === 'MARKET') {
+            const estimatedPrice = market.calculateEstimatedPrice(payload.qty, payload.side);
+            if (estimatedPrice === 0n) return { success: false, error: 'insufficient liquidity for market order' };
+            if (estimatedPrice === undefined) return { success: false, error: 'unable to get the estimated price' };
+            positionSize = openingQty * estimatedPrice;
+          } else {
+            positionSize = openingQty * payload.price;
+          }
+          initialMargin = positionSize / payload.leverage;
+          if (!this.userManager.lockAmount(payload.userId, initialMargin)) {
+            return { success: false, error: 'does not have enough balace' };
+          }
         }
-        return { success: true, message: 'locked the margin', openingQty: openingQty > 0n ? openingQty : 0n };
+        return { success: true, message: 'locked the margin', openingQty: openingQty > 0n ? openingQty : 0n, lockedAmount: initialMargin };
       }
     } else {
 
@@ -349,7 +358,7 @@ export class Engine {
       let positionSize = 0n;
       if (payload.type === 'MARKET') {
         const estimatedPrice = market.calculateEstimatedPrice(payload.qty, payload.side);
-        if (estimatedPrice === 0n) return { success: false, error: 'unable to lock the balace' };
+        if (estimatedPrice === 0n) return { success: false, error: 'insufficient liquidity for market order' };
         if (estimatedPrice === undefined) return { success: false, error: 'unable to get the estimated price' };
         positionSize = payload.qty * estimatedPrice;
       } else {
@@ -359,7 +368,7 @@ export class Engine {
       if (!this.userManager.lockAmount(payload.userId, initialMargin)) {
         return { success: false, error: 'does not have enough balace' };
       }
-      return { success: true, message: 'locked the margin', openingQty: payload.qty };
+      return { success: true, message: 'locked the margin', openingQty: payload.qty, lockedAmount: initialMargin };
     }
   }
 
@@ -393,15 +402,26 @@ export class Engine {
     });
 
     console.log("updating resting order to positions is completed and starting the limit order updation")
-    this.matchOrderExecution(
-      {
-        orderId: order.orderId, price: order.price, userId: order.userId,
-        qtyTransfered: order.filled, timestamp: Date.now().toString(),
-        leverage: order.leverage, side: order.side, tax: 0n,
-      },
-      market,
-    );
+    let totalTakerDebited = 0n;
+    matchedOrders.forEach((matchOrder: MatchOrder) => {
+      totalTakerDebited += this.matchOrderExecution(
+        {
+          orderId: order.orderId, price: matchOrder.price, userId: order.userId,
+          qtyTransfered: matchOrder.qtyTransfered, timestamp: Date.now().toString(),
+          leverage: order.leverage, side: order.side, tax: 0n,
+        },
+        market,
+      );
+    });
     console.log("updating the limit order itself is done");
+
+    const remainingQty = order.qty - order.filled;
+    const unfilledOpeningQty = remainingQty < lockres.openingQty ? remainingQty : lockres.openingQty;
+    const expectedRemainingLocked = lockres.openingQty > 0n ? (unfilledOpeningQty * lockres.lockedAmount) / lockres.openingQty : 0n;
+    const excessMargin = lockres.lockedAmount - totalTakerDebited - expectedRemainingLocked;
+    if (excessMargin > 0n) {
+      this.userManager.unlockAmount(order.userId, excessMargin);
+    }
 
     return filledResponse(
       {
@@ -430,6 +450,7 @@ export class Engine {
     };
 
     if (response.event === 'ORDER_REJECTED') {
+      this.userManager.unlockAmount(payload.userId, lockres.lockedAmount);
       return response as any;
     }
     const matchedOrders = response.payload.matchedOrders;
@@ -439,14 +460,32 @@ export class Engine {
       this.matchOrderExecution(matchOrder, market);
     });
 
-    this.matchOrderExecution(
-      {
-        orderId: order.orderId, price: order.price, userId: order.userId,
-        qtyTransfered: BigInt(response.payload.filled), timestamp: Date.now().toString(),
-        leverage: order.leverage, side: order.side, tax: 0n,
-      },
-      market,
-    );
+    let totalTakerDebited = 0n;
+    matchedOrders.forEach((matchOrder: MatchOrder) => {
+      totalTakerDebited += this.matchOrderExecution(
+        {
+          orderId: order.orderId, price: matchOrder.price, userId: order.userId,
+          qtyTransfered: matchOrder.qtyTransfered, timestamp: Date.now().toString(),
+          leverage: order.leverage, side: order.side, tax: 0n,
+        },
+        market,
+      );
+    });
+
+    if (response.event === 'ORDER_FILLED_PARTIALLY') {
+      const remainingQty = order.qty - BigInt(response.payload.filled);
+      const unfilledOpeningQty = remainingQty < lockres.openingQty ? remainingQty : lockres.openingQty;
+      const expectedRemainingLocked = lockres.openingQty > 0n ? (unfilledOpeningQty * lockres.lockedAmount) / lockres.openingQty : 0n;
+      const excessMargin = lockres.lockedAmount - totalTakerDebited - expectedRemainingLocked;
+      if (excessMargin > 0n) {
+        this.userManager.unlockAmount(order.userId, excessMargin);
+      }
+    } else {
+      const excessMargin = lockres.lockedAmount - totalTakerDebited;
+      if (excessMargin > 0n) {
+        this.userManager.unlockAmount(order.userId, excessMargin);
+      }
+    }
 
     return filledResponse(response as any, order, market);
   }
@@ -521,6 +560,7 @@ function filledResponse(
       tax: takerTax.toString(),
       updates: payload.payload.updates,
       ...order,
+      originalOpeningQty: order.originalOpeningQty.toString(),
       leverage: order.leverage.toString(),
       initialMargin: order.initialMargin.toString(),
       filled: payload.payload.filled.toString(),

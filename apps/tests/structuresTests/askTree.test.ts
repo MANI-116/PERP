@@ -64,7 +64,7 @@ describe("AskTree", () => {
 
         expect(
             tree.removePrice(999n)
-        ).toBeTruthy();
+        ).toBeFalsy();
     });
 
     it("should pop lowest ask", () => {

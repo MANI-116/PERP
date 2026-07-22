@@ -1,21 +1,15 @@
 // dll.snapshot.test.ts
 
 import { describe, it, expect } from "bun:test";
+(BigInt.prototype as any).toJSON = function() { return this.toString(); };
 
 import { Dll, Node } from "@repo/engine-package";
 import { Order } from "@repo/engine-package";
 
 function createOrder(id: string) {
   return new Order(
-    id,
-    "user-1",
-    "btc-usdt",
-    10n,
-    "LONG",
-    100n,
-    10n,
-    "LIMIT"
-  );
+    id, "user-1", "btc-usdt", 10n, "LONG", 100n, 10n, "LIMIT"
+  , 10n);
 }
 
 describe("DLL Snapshot Recovery", () => {

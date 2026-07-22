@@ -40,7 +40,7 @@ export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId:
     let cum = 0;
     let total = book.totalAsks || 1;
     const asks = book.askLevels.map((price) => {
-      const qty = book.priceLevelsData.get(price) ?? 0;
+      const qty = book.askLevelsData.get(price) ?? 0;
       cum += qty;
       return { price, qty, cum, selfPercent: Math.floor((qty / total) * 100), percent: Math.floor((cum / total) * 100) };
     }).reverse();
@@ -50,7 +50,7 @@ export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId:
      cum = 0;
      total = book.totalBids || 1;
     const bids =  book.bidLevels.map((price) => {
-      const qty = book.priceLevelsData.get(price) ?? 0;
+      const qty = book.bidLevelsData.get(price) ?? 0;
       cum += qty;
       return { price, qty, cum, selfPercent: Math.floor((qty / total) * 100), percent: Math.floor((cum / total) * 100) };
     });

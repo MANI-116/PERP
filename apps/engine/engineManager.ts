@@ -83,7 +83,7 @@ export function engineManager(request: any): EngineResponse | null {
       console.log('create order is invoked');
       const payload = {
         ...request.payload,
-        price: BigInt(request.payload.price),
+        price: request.payload.price ? BigInt(request.payload.price) : 0n,
         qty: BigInt(request.payload.qty),
         leverage: BigInt(request.payload.leverage),
       };

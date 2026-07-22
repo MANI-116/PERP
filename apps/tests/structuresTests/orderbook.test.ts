@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+(BigInt.prototype as any).toJSON = function() { return this.toString(); };
 
 import { Order,OrderBook } from "@repo/engine-package";
 
@@ -10,15 +11,8 @@ function createOrder(
   qty: bigint = 10n
 ) {
   return new Order(
-    id,
-    "user-1",
-    "btc-usdt",
-    qty,
-    side,
-    price,
-    10n,
-    "LIMIT"
-  );
+    id, "user-1", "btc-usdt", qty, side, price, 10n, "LIMIT"
+  , qty);
 }
 
 
@@ -80,50 +74,22 @@ describe("OrderBook", () => {
 
   it("should add multiple ask price levels", () => {
     const book = new OrderBook();
-
-    book.addAskOrder(
-      createOrder("1", "SHORT", 100n)
-    );
-
-    book.addAskOrder(
-      createOrder("2", "SHORT", 110n)
-    );
-
-    book.addAskOrder(
-      createOrder("3", "SHORT", 120n)
-    );
-
+    book.addAskOrder(createOrder("1", 10n, 100n));
+    book.addAskOrder(createOrder("2", 10n, 101n));
+    book.addAskOrder(createOrder("3", 10n, 102n));
     expect(book.asks.size).toBe(3);
-
-    expect(book.askTree.getLength())
-      .toBe(3);
-
-    expect(book.askTree.getMinAsk())
-      .toBe(100n);
+    expect(book.askTree.getLength()).toBe(3);
+    expect(book.askTree.getMinAsk()).toBe(100n);
   });
 
   it("should add multiple bid price levels", () => {
     const book = new OrderBook();
-
-    book.addBidOrder(
-      createOrder("1", "LONG", 100n)
-    );
-
-    book.addBidOrder(
-      createOrder("2", "LONG", 90n)
-    );
-
-    book.addBidOrder(
-      createOrder("3", "LONG", 80n)
-    );
-
+    book.addBidOrder(createOrder("1", 10n, 100n));
+    book.addBidOrder(createOrder("2", 10n, 99n));
+    book.addBidOrder(createOrder("3", 10n, 98n));
     expect(book.bids.size).toBe(3);
-
-    expect(book.bidTree.getLength())
-      .toBe(3);
-
-    expect(book.bidTree.getTop())
-      .toBe(100n);
+    expect(book.bidTree.getLength()).toBe(3);
+    expect(book.bidTree.getTop()).toBe(100n);
   });
 
   it("should add multiple orders to same ask level", () => {
@@ -299,35 +265,16 @@ describe("OrderBook", () => {
 
   it("should recover multiple levels", () => {
     const book = new OrderBook();
+    book.addAskOrder(createOrder("1", 10n, 100n));
+    book.addAskOrder(createOrder("2", 20n, 101n));
+    book.addBidOrder(createOrder("3", 10n, 98n));
+    book.addBidOrder(createOrder("4", 20n, 99n));
 
-    book.addAskOrder(
-      createOrder("1", "SHORT", 100n)
-    );
-
-    book.addAskOrder(
-      createOrder("2", "SHORT", 120n)
-    );
-
-    book.addBidOrder(
-      createOrder("3", "LONG", 90n)
-    );
-
-    book.addBidOrder(
-      createOrder("4", "LONG", 80n)
-    );
-
-    const recovered =
-      OrderBook.createFromSnapshot(
-        book.giveSnapshot()
-      );
-
+    const snapshot = book.giveSnapshot();
+    const recovered = OrderBook.createFromSnapshot(snapshot);
     expect(recovered).not.toBeNull();
-
-    expect(recovered!.asks.size)
-      .toBe(2);
-
-    expect(recovered!.bids.size)
-      .toBe(2);
+    expect(recovered!.asks.size).toBe(2);
+    expect(recovered!.bids.size).toBe(2);
   });
 
   it("snapshot -> recover -> snapshot should be identical", () => {
