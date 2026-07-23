@@ -429,14 +429,11 @@ export class OrderBook {
 
         
 
-        //executing the order
-        if (requiredQty <= availablleQty) {
-          matchedOrder.filled += requiredQty;
-          order.filled += requiredQty;
-        } else {
-          matchedOrder.filled += availablleQty;
-          order.filled += availablleQty;
-        }
+        const filled = requiredQty <= availablleQty ? requiredQty : availablleQty;
+
+        matchedOrder.filled += filled;
+        opSidelevelData.totalQty -= filled;
+        order.filled += filled;
 
         matchedOrders.push({
           price: matchedOrder.price,
@@ -444,20 +441,26 @@ export class OrderBook {
           side: matchedOrder.side,
           userId: matchedOrder.userId,
           orderId: matchedOrder.orderId,
-          qtyTransfered: matchedOrder.filled,
+          qtyTransfered: filled,
           timestamp: Date.now().toString(),
           tax: 0n,
         });
 
         if (matchedOrder.filled === matchedOrder.qty) {
-          //order is filled completely so the order is removed from the pricelevel
           matchedOrder.side === 'SHORT' ? this.removeAskOrder(matchedOrder) : this.removeBuyOrder(matchedOrder);
         }
+        
         if (order.filled === order.qty) {
+          if (order.side === 'SHORT') {
+            bids.push([level.toString(), opSidelevelData.totalQty.toString()]);
+          } else {
+            asks.push([level.toString(), opSidelevelData.totalQty.toString()]);
+          }
+
           let updates = {
             uid:this.updateId++,
-            bids: matchedOrder.side === 'LONG' ? [[price.toString(), opSidelevelData.totalQty.toString()]] : [[]],
-            asks: matchedOrder.side === 'SHORT' ? [[price.toString(), opSidelevelData.totalQty.toString()]] : [[]],
+            bids,
+            asks,
           };
           return {
             event: 'ORDER_FILLED' as const,
@@ -480,9 +483,9 @@ export class OrderBook {
         currentOrderNode = nextNode;
       }
       if (order.side === 'SHORT') {
-        bids.push([price.toString(), opSidelevelData.totalQty.toString()]);
+        bids.push([level.toString(), opSidelevelData.totalQty.toString()]);
       } else {
-        asks.push([price.toString(), opSidelevelData.totalQty.toString()]);
+        asks.push([level.toString(), opSidelevelData.totalQty.toString()]);
       }
     }
     

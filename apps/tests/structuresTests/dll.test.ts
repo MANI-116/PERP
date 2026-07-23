@@ -27,7 +27,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     expect(recovered!.length).toBe(1);
 
@@ -53,7 +55,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     expect(recovered!.length).toBe(3);
 
@@ -86,7 +90,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     const snapshot2 =
       recovered!.giveSnapshot();
@@ -108,7 +114,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     recovered!.addNode(
       new Node(createOrder("3"))
@@ -133,7 +141,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     const head = recovered!.getFirstOrder();
     const tail = head.right!;
@@ -160,7 +170,9 @@ describe("DLL Snapshot Recovery", () => {
       Order.createFromSnapshot
     );
 
+    
     expect(recovered).not.toBeNull();
+
 
     const head =
       recovered!.getFirstOrder();

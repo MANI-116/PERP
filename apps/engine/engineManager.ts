@@ -51,7 +51,14 @@ function deleteOrder(orderId: string, marketId: string): DeleteOrderResponse {
       userManager.unlockAmount(order.userId, refundAmount);
     }
   }
-  return { ...response, orderId, marketId };
+  console.log(response);
+  return {
+    success:response.success,
+     updates:response.updates, 
+      orderId,
+      marketId,
+
+   };
 }
 
 function rampUser({ userId, credit }: { userId: string; credit: bigint }): RampUserResponse {

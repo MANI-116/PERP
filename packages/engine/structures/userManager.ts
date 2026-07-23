@@ -173,6 +173,10 @@ export class UserManager {
     if (!user) return { success: false, error: 'user not found' };
     const position = user.positions.set(marketId, positionId);
   }
+  removePosition(userId: string, marketId: string) {
+    const user = this.users.get(userId);
+    if (user) user.positions.delete(marketId);
+  }
   giveSnapshot() {
     const usersSnapshot = [];
     for (const user of this.users.values()) {

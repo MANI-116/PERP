@@ -200,7 +200,7 @@ export class Market {
     if (filled < qty) {
       return 0n; // Insufficient liquidity
     }
-    let estimatedPrice = notionalSize / filled;
+    let estimatedPrice = (notionalSize + filled - 1n) / filled;
     if (estimatedPrice === undefined) return 0n;
     return estimatedPrice;
   }
@@ -308,10 +308,11 @@ export class Market {
         // response.initialMargin  = newPos.initialMargin
       } else {
         //settle the position
+        const oldSide = position.side;
         const oldLp = position.liquidationPrice;
         position.addFill(price, qty, leverage, side);
 
-        side === 'SHORT' ? this.removeShort(position, oldLp) : this.removeLong(position, oldLp);
+        oldSide === 'SHORT' ? this.removeShort(position, oldLp) : this.removeLong(position, oldLp);
         if (position.state != 'CLOSED') {
           side === 'SHORT' ? this.addShort(position) : this.addLong(position);
         }
@@ -367,7 +368,7 @@ export class Market {
     //get the level
     // ******** lp is for the postions which transitioned from the short to long
     //single order remove level,remove ref and remove treePrice check wether positon is long or short
-    const level = lp ? this.shorts.get(lp) : this.shorts.get(position.liquidationPrice);
+    const level = lp !== undefined ? this.shorts.get(lp) : this.shorts.get(position.liquidationPrice);
     if (level === undefined) {
       return { success: false, message: 'position doesnot exist' };
     }
@@ -392,7 +393,7 @@ export class Market {
   removeLong(position: Position, lp?: bigint) {
     //get the level
     //single order remove level,remove ref and remove treePrice
-    const level = lp ? this.longs.get(lp) : this.longs.get(position.liquidationPrice);
+    const level = lp !== undefined ? this.longs.get(lp) : this.longs.get(position.liquidationPrice);
     if (level === undefined) {
       return { success: false, message: 'position doesnot exist' };
     }

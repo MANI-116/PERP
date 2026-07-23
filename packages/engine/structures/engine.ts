@@ -226,6 +226,12 @@ export class Engine {
         makerOrder.leverage,
         makerOrder.qtyTransfered,
       );
+
+      // Cleanup closed positions
+      if (!market.positionsRef.has(response.positionId!)) {
+        this.userManager.removePosition(makerOrder.userId, market.marketId);
+      }
+
       const notionalAmount = makerOrder.qtyTransfered * makerOrder.price;
 
       //same side update
@@ -245,9 +251,7 @@ export class Engine {
      
         if (makerQty >= makerOrder.qtyTransfered) {
              //no reversal
-           const initialMargin = (makerOrder.price * makerOrder.qtyTransfered) / makerOrder.leverage;
-             
-          const direction = makerSide === 'SHORT' ? -1n : 1n;
+           const direction = makerSide === 'SHORT' ? -1n : 1n;
           const realizedPnL = (makerOrder.price - makerPrice) * makerOrder.qtyTransfered * direction;
           const releasedMargin = (makerMargin * makerOrder.qtyTransfered) / makerQty;
           const settlementAmount = releasedMargin + realizedPnL;

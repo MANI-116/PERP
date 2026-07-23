@@ -144,6 +144,8 @@ export class Position implements GiveSnapshot, Id {
       } else {
         //close the position
         this.state = 'CLOSED';
+        this.qty = 0n;
+        this.initialMargin = 0n;
       }
     }
   }

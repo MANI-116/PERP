@@ -447,7 +447,7 @@ describe("Market Order", () => {
     engine.placeOrder(createOrder({ orderId: "m1", userId: "maker", side: "SHORT", qty: 5n, price: 100n }));
     const res = engine.placeOrder(createOrder({ orderId: "t1", userId: "taker", side: "LONG", qty: 10n, price: 0n, type: "MARKET" }));
     // Depending on engine logic, this may be FILLED_PARTIALLY or fill what's available
-    expect(res.event).not.toBe("ORDER_REJECTED" as any);
+    expect(res.event).toBe("ORDER_REJECTED" as any); // Insufficient liquidity should reject
   });
 });
 
