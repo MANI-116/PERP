@@ -1,8 +1,7 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
+
 import { motion } from "motion/react"
 import React from "react";
-import {  OrderBook } from "@/lib/socketManager";
 import { useOrderBook } from "@/hooks";
 import { SkeletonRow } from "./SkeletonRow";
 
@@ -92,7 +91,7 @@ export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId:
             className="absolute bg-[#f23645]/40 inset-y-0 right-0"
             style={{ width: `${selfPercent}%` }}
           />
-          <div className="flex-1 text-[#f23645] z-10 text-xs tabular-nums">{price}</div>
+          <div className="flex-1 text-[#f23645] z-10 text-xs tabular-nums">{price/100_000_000}</div>
           <div className="flex-1 text-zinc-300 z-10 text-xs tabular-nums text-right">{qty}</div>
           <div className="flex-1 text-zinc-400 z-10 text-xs tabular-nums text-right">{cum.toFixed(3)}</div>
         </motion.div>
@@ -122,7 +121,7 @@ export const Orderbook = React.memo(function Orderbook({ marketId }: { marketId:
             className="absolute bg-[#0ecb81]/40 inset-y-0 right-0"
             style={{ width: `${selfPercent}%` }}
           />
-          <div className="flex-1 text-[#0ecb81] z-10 text-xs tabular-nums">{price}</div>
+          <div className="flex-1 text-[#0ecb81] z-10 text-xs tabular-nums">{price/100_000_000}</div>
           <div className="flex-1 text-zinc-300 z-10 text-xs tabular-nums text-right">{qty}</div>
           <div className="flex-1 text-zinc-400 z-10 text-xs tabular-nums text-right">{cum.toFixed(3)}</div>
         </motion.div>

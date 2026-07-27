@@ -109,7 +109,7 @@ export function Stakes({ market }: { market: string }){
                   <span className="w-16 text-zinc-400 text-sm">{o.type}</span>
                   <span className="w-20 text-zinc-300 text-sm">qty: {o.qty}</span>
                   <span className="w-24 text-zinc-400 text-sm">filled: {o.filled}</span>
-                  <span className="w-24 text-zinc-400 text-sm">price: {o.price}</span>
+                  <span className="w-24 text-zinc-400 text-sm">price: {o.price/100_000_000}</span>
                   <button onClick={() => cancelOrder(o.orderId)} className="ml-auto text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1.5 rounded transition-colors">Cancel</button>
                 </div>
               ))}
@@ -124,8 +124,8 @@ export function Stakes({ market }: { market: string }){
               <div key={i} className="flex flex-row items-center gap-x-4 border-b border-zinc-800 py-2.5">
                 <span className={p.side === "LONG" ? "text-green-500 w-12 text-sm font-medium" : "text-red-500 w-12 text-sm font-medium"}>{p.side}</span>
                 <span className="w-24 text-zinc-300 text-sm">qty: {p.qty}</span>
-                <span className="w-24 text-zinc-400 text-sm">entry: {p.avgPrice}</span>
-                <span className="w-24 text-zinc-400 text-sm">liq: {p.liquidationPrice}</span>
+                <span className="w-24 text-zinc-400 text-sm">entry: {p.avgPrice/100_000_000}</span>
+                <span className="w-24 text-zinc-400 text-sm">liq: {p.liquidationPrice/100_000_000}</span>
               </div>
             ))
           )
@@ -137,7 +137,7 @@ export function Stakes({ market }: { market: string }){
               {fills.map((f, i) => (
                 <div key={i} className="flex flex-row items-center gap-x-4 border-b border-zinc-800 py-2.5">
                   <span className="w-24 text-zinc-300 text-sm">qty: {f.qty}</span>
-                  <span className="w-24 text-zinc-400 text-sm">price: {f.price}</span>
+                  <span className="w-24 text-zinc-400 text-sm">price: {f.price/100_000_000}</span>
                 </div>
               ))}
               <Pagination page={page} total={total} onPrev={prevPage} onNext={nextPage} />

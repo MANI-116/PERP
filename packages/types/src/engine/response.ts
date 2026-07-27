@@ -30,6 +30,7 @@ export interface MatchOrder{
     timestamp:string,
     leverage:bigint,
     side:OrderSide,
+    state:"FILLED"|"PARTIALLY_FILLED",
     tax:bigint
 }
 
@@ -46,6 +47,7 @@ export interface TransmitMatchOrder{
 export interface OrderFilledResponse extends TransmitOrder{
    
     matchedOrders:TransmitMatchOrder[],
+    originalOpeningQty:string,
     leverage:string,
     initialMargin:string,
     tax:string,

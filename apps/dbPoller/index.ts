@@ -110,9 +110,21 @@ async function dbWorker(message: EngineResponse) {
         case "SNAPSHOT":
             await storeSnapshot(message);
             break;
+        case "CREATE_MARKET":
+            await createMarket(message);
+            break;
+        case "CREATE_USER":
+            await createUser(message);
+            break;
     }
 }
 
+async function createUser(message:EngineResponse){
+
+}
+async function createMarket(message:EngineResponse){
+    
+}
 async function storeSnapshot(message: EngineResponse) {
     try {
         if (message.event !== "SNAPSHOT") return;
@@ -238,13 +250,22 @@ async function updateOrder(orderDetails:EngineResponse){
                         takerOrderId:orderId,
                         makerOrderId:matchedOrder.orderId,
                         qty:BigInt(matchedOrder.qtyTransfered),
-                        price:BigInt(price)
+                        price:BigInt(matchedOrder.price)
                     },
                     select:{
                         id:true
                     }
                 });
-                console.log("transaction created:-",response);
+                console.log("transaction created:-",{
+                        takerId:userId,
+                        makerId:matchedOrder.userId,
+                        takerFee:BigInt(tax),
+                        makerFee:BigInt(matchedOrder.tax),
+                        takerOrderId:orderId,
+                        makerOrderId:matchedOrder.orderId,
+                        qty:BigInt(matchedOrder.qtyTransfered),
+                        price:BigInt(matchedOrder.price)
+                    });
             }
 
             // Update lastPrice for the market

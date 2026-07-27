@@ -30,7 +30,7 @@ function createMarket(marketId: string): CreateMarketResponse {
     mmr: 5n,
     takerRate: 5n,
     makerRate: 2n,
-    taxationScale: 3n,
+    taxationScale: 100n,
     symbol: 'SOLUSDT',
   });
 }
@@ -45,24 +45,31 @@ function deleteOrder(orderId: string, marketId: string): DeleteOrderResponse {
     const order = response.order;
     const remainingQty = BigInt(order.qty) - BigInt(order.filled);
     const originalOpeningQty = BigInt(order.originalOpeningQty);
-    const unfilledOpeningQty = remainingQty < originalOpeningQty ? remainingQty : originalOpeningQty;
+    const unfilledOpeningQty =
+      remainingQty < originalOpeningQty ? remainingQty : originalOpeningQty;
     if (unfilledOpeningQty > 0n) {
-      const refundAmount = (unfilledOpeningQty * BigInt(order.price)) / BigInt(order.leverage);
+      const refundAmount =
+        (unfilledOpeningQty * BigInt(order.price)) / BigInt(order.leverage);
       userManager.unlockAmount(order.userId, refundAmount);
     }
   }
   console.log(response);
   return {
-    success:response.success,
-     updates:response.updates, 
-      orderId,
-      marketId,
-
-   };
+    success: response.success,
+    updates: response.updates,
+    orderId,
+    marketId,
+  };
 }
 
-function rampUser({ userId, credit }: { userId: string; credit: bigint }): RampUserResponse {
-  const response = userManager.rampUser(userId, credit);
+function rampUser({
+  userId,
+  credit,
+}: {
+  userId: string;
+  credit: bigint;
+}): RampUserResponse {
+  const response = userManager.rampUser(userId, credit*100_000_000n);
   return { ...response };
 }
 
@@ -90,7 +97,7 @@ export function engineManager(request: any): EngineResponse | null {
       console.log('create order is invoked');
       const payload = {
         ...request.payload,
-        price: request.payload.price ? BigInt(request.payload.price) : 0n,
+        price: request.payload.price ? BigInt(request.payload.price)*100_000_000n : 0n,
         qty: BigInt(request.payload.qty),
         leverage: BigInt(request.payload.leverage),
       };
@@ -99,40 +106,66 @@ export function engineManager(request: any): EngineResponse | null {
     case 'CREATE_USER': {
       const { userId } = request.payload;
       const payload = createUser(userId);
-      return { event: 'CREATE_USER', eventId: engine.getNextEventId().toString(), payload };
+      return {
+        event: 'CREATE_USER',
+        eventId: engine.getNextEventId().toString(),
+        payload,
+      };
     }
 
     case 'CREATE_MARKET': {
       const { marketId } = request.payload;
       const payload = createMarket(marketId);
-      return { event: 'CREATE_MARKET', eventId: engine.getNextEventId().toString(), payload };
+      return {
+        event: 'CREATE_MARKET',
+        eventId: engine.getNextEventId().toString(),
+        payload,
+      };
     }
     case 'RAMP_USER': {
       const { userId, credit } = request.payload;
       const payload = rampUser({ userId, credit: BigInt(credit) });
-      return { event: 'RAMP_USER', eventId: engine.getNextEventId().toString(), payload };
+      return {
+        event: 'RAMP_USER',
+        eventId: engine.getNextEventId().toString(),
+        payload,
+      };
     }
     case 'DELETE_ORDER': {
       const { orderId, marketId } = request.payload;
       const response = deleteOrder(orderId, marketId);
-      return { event: 'DELETE_ORDER', eventId: engine.getNextEventId().toString(), payload: response };
+      return {
+        event: 'DELETE_ORDER',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
     }
 
-    case 'GET_OPEN_POSITIONS':
-      {
-        const { userId } = request.payload;
-        const response = getOpenPositions(userId);
-        return { event: 'GET_OPEN_POSITIONS', eventId: engine.getNextEventId().toString(), payload: response };
-      }
-    case 'GET_CLOSED_POSITIONS':
-      {
-        const { userId } = request.payload;
-        const response = getClosedPositions(userId);
-        return { event: 'GET_CLOSED_POSITIONS', eventId: engine.getNextEventId().toString(), payload: response };
-      }
+    case 'GET_OPEN_POSITIONS': {
+      const { userId } = request.payload;
+      const response = getOpenPositions(userId);
+      return {
+        event: 'GET_OPEN_POSITIONS',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
+    }
+    case 'GET_CLOSED_POSITIONS': {
+      const { userId } = request.payload;
+      const response = getClosedPositions(userId);
+      return {
+        event: 'GET_CLOSED_POSITIONS',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
+    }
     case 'GET_EQUITY': {
       const response = getEquity(request.payload.userId);
-      return { event: 'GET_EQUITY', eventId: engine.getNextEventId().toString(), payload: response };
+      return {
+        event: 'GET_EQUITY',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
     }
     case 'UPDATE_MARKPRICE':
       {
@@ -140,16 +173,22 @@ export function engineManager(request: any): EngineResponse | null {
         const market = marketManager.getMarket(symbol);
         if (market) {
           console.log('starting liquidation engine-', symbol);
-          getLiquidationEngine().updateMarkPrice(BigInt(markPrice), market.marketId);
+          getLiquidationEngine().updateMarkPrice(
+            BigInt(markPrice),
+            market.marketId
+          );
         }
       }
       break;
-    case 'GET_DEPTH':
-      {
-        const { marketId } = request.payload;
-        const response = getDepth(marketId);
-        return { event: 'GET_DEPTH', eventId: engine.getNextEventId().toString(), payload: response };
-      }
+    case 'GET_DEPTH': {
+      const { marketId } = request.payload;
+      const response = getDepth(marketId);
+      return {
+        event: 'GET_DEPTH',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
+    }
     case 'RESTORE_SNAPSHOT':
       {
         const { snapshot, lastEventId, liquidationCounters } = request.payload;
@@ -218,5 +257,8 @@ function getDepth(marketId: string) {
       return [e[0].toString(), e[1].totalQty.toString()];
     });
 
-  return { success: true, data: { uidAtSnapshot:market.orderbook.getUpdateId() - 1,asks, bids } };
+  return {
+    success: true,
+    data: { uidAtSnapshot: market.orderbook.getUpdateId() - 1, asks, bids },
+  };
 }

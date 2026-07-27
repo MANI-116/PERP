@@ -78,7 +78,21 @@ export class UserManager {
     user.positions.forEach((positionId, marketId) => {
       const market = marketManager.getMarket(marketId);
       if (!market) return;
-      const data = market.getData(positionId, { keys: ['id', 'userId', 'qty', 'side', 'avgPrice', 'liquidationPrice', 'state', 'initialMargin', 'markPrice', 'unrealizedPnL', 'mmr'] });
+      const data = market.getData(positionId, {
+        keys: [
+          'id',
+          'userId',
+          'qty',
+          'side',
+          'avgPrice',
+          'liquidationPrice',
+          'state',
+          'initialMargin',
+          'markPrice',
+          'unrealizedPnL',
+          'mmr',
+        ],
+      });
       if (!data.success || !data.data) return;
       const p = data.data;
       if (filterState && p.state !== filterState) return;
@@ -119,7 +133,7 @@ export class UserManager {
     });
 
     const equity = (user.collateral.locked + user.collateral.available + unrealizedPnL).toString();
-    return { success: true, data: { equity } };
+    return { success: true, data: { equity ,available:user.collateral.available.toString(),locked:user.collateral.locked.toString()} };
   }
 
   foundUser(userId: string) {
@@ -128,18 +142,24 @@ export class UserManager {
 
   lockAmount(userId: string, amount: bigint) {
     const user = this.users.get(userId);
-    if (!user) return false;
+    if (!user) throw new Error('[critical] did not find user');
     if (user.collateral.available > amount) {
       user.collateral.available -= amount;
       user.collateral.locked += amount;
-      return true;
+
+      console.log('amount locked:', amount);
+      return { success: true, message: `amount locked-${amount}: remaining amount-${user.collateral.available}` };
     }
-    return false;
+    return {
+      success: false,
+      error: `not have enough amount: available ${user.collateral.available}: needed ${amount}`,
+    };
   }
 
   unlockAmount(userId: string, amount: bigint) {
     const user = this.users.get(userId);
     if (!user) return false;
+    console.log('amount want to unlock-', amount);
     if (user.collateral.locked >= amount) {
       user.collateral.locked -= amount;
       user.collateral.available += amount;
@@ -160,7 +180,7 @@ export class UserManager {
 
   getPosition(
     userId: string,
-    marketId: string,
+    marketId: string
   ): { success: true; positionId: string } | { success: false; error: string } {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'user not found' };

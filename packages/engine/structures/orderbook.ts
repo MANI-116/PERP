@@ -314,6 +314,7 @@ export class OrderBook {
           orderId: matchedOrder.orderId,
           qtyTransfered: filled,
           side: matchedOrder.side,
+          state: matchedOrder.filled === matchedOrder.qty ? "FILLED" : "PARTIALLY_FILLED",
           timestamp: Date.now().toString(),
           tax: 0n,
         });
@@ -322,7 +323,9 @@ export class OrderBook {
   
         if (matchedOrder.filled === matchedOrder.qty) {
           //matched order is fullfilled from remove from the book
+          opSidelevelData.totalQty+=filled;
           matchedOrder.side === 'SHORT' ? this.removeAskOrder(matchedOrder) : this.removeBuyOrder(matchedOrder);
+          
           //we need to update if level itself removed
           const priceLevel = matchedOrder.side === "SHORT" ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
           if(priceLevel === undefined){
@@ -395,6 +398,11 @@ export class OrderBook {
     const executionPrices = executionPricesStr.map(p => BigInt(p)).reverse();
 
     const matchedOrders: MatchOrder[] = [];
+    const updates:{uid:number,asks:string[][],bids:string[][]} = {
+      uid:-2,
+      asks:[],
+      bids:[]
+    }
     let bids: string[][] = [];
     let asks: string[][] = [];
 
@@ -402,8 +410,8 @@ export class OrderBook {
       return rejectOrderResponse('no counter offers', { ...order, marketId: order.assetId });
     }
 
-    for (const level of executionPrices) {
-      let opSidelevelData = order.side === 'LONG' ? this.asks.get(level) : this.bids.get(level);
+    for (const executionPrice of executionPrices) {
+      let opSidelevelData = order.side === 'LONG' ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
       if (opSidelevelData === undefined) {
         //no opposite price level present for the asset ,so reject he market Order
         order.side === 'LONG' ? this.addBidOrder(order) : this.addAskOrder(order);
@@ -415,6 +423,7 @@ export class OrderBook {
       let currentOrderNode: Node<Order> | null = opSidelevelData.list.getFirstOrder();
 
       for (let index = 0; index < ordersLength; index++) {
+
         if (!currentOrderNode) break;
         const matchedOrder = currentOrderNode.value;
         const nextNode: Node<Order> | null = currentOrderNode.right;
@@ -442,51 +451,49 @@ export class OrderBook {
           userId: matchedOrder.userId,
           orderId: matchedOrder.orderId,
           qtyTransfered: filled,
+          state:matchedOrder.filled ===matchedOrder.qty?"FILLED":"PARTIALLY_FILLED",
           timestamp: Date.now().toString(),
           tax: 0n,
         });
 
-        if (matchedOrder.filled === matchedOrder.qty) {
+          if (matchedOrder.filled === matchedOrder.qty) {
+          //matched order is fullfilled from remove from the book
+          opSidelevelData.totalQty+=filled;
           matchedOrder.side === 'SHORT' ? this.removeAskOrder(matchedOrder) : this.removeBuyOrder(matchedOrder);
-        }
-        
-        if (order.filled === order.qty) {
-          if (order.side === 'SHORT') {
-            bids.push([level.toString(), opSidelevelData.totalQty.toString()]);
-          } else {
-            asks.push([level.toString(), opSidelevelData.totalQty.toString()]);
+          
+          //we need to update if level itself removed
+          const priceLevel = matchedOrder.side === "SHORT" ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
+          if(priceLevel === undefined){
+            //level is removed need to update
+            
+            matchedOrder.side === "SHORT" ? updates.asks.push([executionPrice.toString(),"0"]): updates.bids.push([executionPrice.toString(),"0"]);
           }
+          
+        }
 
-          let updates = {
-            uid:this.updateId++,
-            bids,
-            asks,
-          };
+           //incoming order consumed some qty fron the level so add update of the level
+        if (order.filled === order.qty) {
+          updates.uid = this.updateId++;
+          matchedOrder.side === 'SHORT' ? updates.asks.push( [executionPrice.toString(), opSidelevelData.totalQty.toString()]) :updates.bids.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
+
           return {
-            event: 'ORDER_FILLED' as const,
+            event: 'ORDER_FILLED',
             payload: {
-              type: order.type,
-              qty: qty,
-              state: 'FILLED',
-              userId,
-              side,
-              marketId: order.assetId,
-              orderId: order.orderId,
-              filled: order.qty,
-              price: order.price,
+              filled: order.filled,
               matchedOrders,
               updates,
             },
           };
         }
-        
+                
         currentOrderNode = nextNode;
       }
-      if (order.side === 'SHORT') {
-        bids.push([level.toString(), opSidelevelData.totalQty.toString()]);
-      } else {
-        asks.push([level.toString(), opSidelevelData.totalQty.toString()]);
-      }
+      
+      // if (order.side === 'SHORT') {
+      //   bids.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
+      // } else {
+      //   asks.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
+      // }
     }
     
     if (order.filled === 0n) {
@@ -494,7 +501,7 @@ export class OrderBook {
     }
 
     return {
-      event: 'ORDER_FILLED_PARTIALLY' as const,
+      event: 'ORDER_FILLED' as const,
       payload: {
         type: order.type,
         qty: qty,

@@ -14,7 +14,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
   const { user, setUser } = useContext(UserContext)
   const router = useRouter()
   const [amount, setAmount] = useState("")
-  const [balance, setBalance] = useState("0")
+  const [balance, setBalance] = useState({equity:0,locked:0,available:0})
   const [ramping, setRamping] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -23,7 +23,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
       const res = await fetch(`${API_BASE}/equity/available`, { credentials: "include" })
       const data = await res.json()
       if (data.payload.success && data.payload.data?.equity) {
-        setBalance(data.payload.data.equity)
+        setBalance(data.payload.data)
       }
     } catch (err) {
       console.log("fetch balance error", err)
@@ -49,7 +49,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
       })
       const data = await res.json()
       if (data.payload.totalAvailable) {
-        setBalance(data.payload.totalAvailable)
+        setBalance({equity:Number(data.payload.totalAvailable),locked:balance.locked,available:balance.available})
       }
       setAmount("")
     } catch (err) {
@@ -60,7 +60,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
   }
 
   useEffect(() => {
-    if (isOpen) fetchBalance()
+    if (isOpen) {fetchBalance()};
   }, [isOpen])
 
   useEffect(() => {
@@ -109,8 +109,13 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
 
       {/* Balance */}
       <div className="px-4 py-3">
-        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Available Balance</p>
-        <p className="text-xl font-bold text-zinc-50">${balance}</p>
+        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Equity</p>
+        <p className="text-xl font-bold text-zinc-50">${Number(balance.equity)/100_000_000}</p>
+
+         <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Available Balance</p>
+         <p className="text-xl font-bold text-zinc-50">${Number(balance.available)/100_000_000}</p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Locked Balance</p>
+          <p className="text-xl font-bold text-zinc-50">${Number(balance.locked)/100_000_000}</p>
       </div>
 
       {/* Deposit */}

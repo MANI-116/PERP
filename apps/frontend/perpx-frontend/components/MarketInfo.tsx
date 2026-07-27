@@ -12,7 +12,7 @@ function formatPrice(price: string, scale: string): string {
 }
 
 export function MarketInfo({ name, symbol, markPrice, scale,className,ltp }: MarketInfoProps) {
-  const formattedPrice = ltp ?? formatPrice(markPrice, scale);
+  const formattedPrice = ltp ?? formatPrice((Number(markPrice)/100_000_000).toString(), scale);
 
   return (
     <div className={"w-80 shrink-0 bg-zinc-900/70 border border-zinc-800 rounded-lg flex flex-col overflow-hidden " + className}>

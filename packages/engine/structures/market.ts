@@ -157,11 +157,38 @@ export class Market {
   calculatetax(notionalAmount: bigint, type: 'taker' | 'maker') {
     let taxRate = type === 'taker' ? this.takerRate : this.makerRate;
     const tax = (notionalAmount * taxRate) / this.taxationScale;
+    console.log(`notional amount-${notionalAmount} ,taxRate-${taxRate}, scale:${this.taxationScale}, finalTax:${tax}`)
     return tax;
   }
 
+  getBuyEstimate(slippage:bigint,slippageScale:bigint){
+    const bestBid = this.orderbook.bidTree.getTop();
+ 
+    if(bestBid === undefined){
+      return { success:false,error:"NO BUY ORDERS"};
+    }
+
+    const estimate = bestBid - (bestBid*slippage)/slippageScale;
+        console.log(`caluculating estimate for market order using slippage:${slippage} and scale ${slippageScale} with bestBuy:${bestBid} and estimate:${estimate}`);
+
+    return { success: true, estimate};
+
+  }
+
+  getSellEstimate(slippage:bigint,slippageScale:bigint){
+
+    const bestAsk = this.orderbook.askTree.getMinAsk();
+    if(bestAsk === undefined) return {success:false,error:"NO SELL ORDERS"};
+
+    const estimate = bestAsk + (bestAsk*slippage)/slippageScale;
+    console.log(`caluculating estimate for market order using slippage:${slippage} and scale ${slippageScale} with bestAsk:${bestAsk} and estimate:${estimate}`);
+
+    return { success:true, estimate}
+
+  }
+  
   calculateEstimatedPrice(qty: bigint, side: OrderSide) {
-    let filled = 0n;
+    let filled = 0n
 
     let totalLevels = side === 'SHORT' ? this.orderbook.bidTree.getLength() : this.orderbook.askTree.getLength();
     const removedPrices: bigint[] = [];
@@ -423,8 +450,10 @@ export class Market {
 
   cutInitialMargin(positionId: string, amount: bigint) {
     const position = this.positionsRef.get(positionId);
-    if (!position) return { success: false };
+    if (!position) throw new Error(`[critical] position not found - ${positionId}`);
+    const beforeMargin = position.value.initialMargin;
     const response = position.value.reduceMargin(amount);
+    console.log(`position:${positionId}: margin before:${beforeMargin} - afterCut:${position.value.initialMargin}`)
     return response;
   }
 

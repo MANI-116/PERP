@@ -44,10 +44,10 @@ export class Position implements GiveSnapshot, Id {
   }
   reduceMargin(amount: bigint) {
     if (this.initialMargin <= amount) {
-      return { success: false, error: 'not enough margins' };
+      return { success: false, error: `amount need to dedcut :${amount}, available margin:${this.initialMargin}`, };
     }
     this.initialMargin -= amount;
-    return { success: true };
+    return { success: true, message:`${amount} is cut from the position margin and remainig margin is ${this.initialMargin}`};
   }
 
   giveSnapshot() {

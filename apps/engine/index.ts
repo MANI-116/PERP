@@ -115,7 +115,7 @@ setInterval(async () => {
     await receiver.xTrim('engine-stream', 'MAXLEN', 10000);
     await receiver.xTrim('response-stream', 'MAXLEN', 50000);
   } catch {}
-}, 1 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, dumping final snapshot...');

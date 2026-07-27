@@ -1,0 +1,11 @@
+{
+  "editor.tabSize": 2, // Number of spaces per block level (use 4 if you prefer wider steps)
+  "editor.insertSpaces": true, // Converts tabs to clean spaces
+  "editor.detectIndentation": false, // Forces VS Code to use your setting, not guess from the file
+  "editor.guides.indentation": true, // Draws vertical alignment lines between matching { and }
+  "editor.guides.bracketPairs": false ,// Color-codes matching pairs of curly braces
+  "editor.guides.bracketPairsHorizontal": false,
+  "editor.guides.highlightActiveBracketPair": false,
+
+}  
+
