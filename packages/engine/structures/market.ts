@@ -270,6 +270,36 @@ export class Market {
     return { success: true, qty: position.qty };
   }
 
+ 
+
+  reserveClosedQty(positionId:string,orderId:string,qty:bigint){
+    const positionNode = this.positionsRef.get(positionId);
+    if (!positionNode) return { error: ' postion not found', success: false };
+
+    const position = positionNode.value;
+    return position.reserveClosedQty(orderId,qty);
+
+
+  }
+
+  consumeReservedCloseQty(positionId:string,orderId:string,qty:bigint){
+     const positionNode = this.positionsRef.get(positionId);
+    if (!positionNode) return { error: ' postion not found', success: false };
+
+    const position = positionNode.value;
+    return position.consumeReservedCloseQty(orderId,qty);
+
+  }
+
+  releaseReservedCloseQty(positionId:string,orderId:string){
+       const positionNode = this.positionsRef.get(positionId);
+    if (!positionNode) return { error: ' postion not found', success: false };
+
+    const position = positionNode.value;
+    return position.releaseReservedCloseQty(orderId);
+
+  }
+
   PartialFillPosition(positionId: string, price: bigint, qty: bigint) {
     const positionNode = this.positionsRef.get(positionId);
     if (!positionNode) return { error: ' postion not found', success: false };
@@ -295,7 +325,7 @@ export class Market {
     return { success: true, message: 'updated positons', settlementAmount };
   }
 
-  updatePositions(positionId: string, side: OrderSide, userId: string, price: bigint, leverage: bigint, qty: bigint) {
+  updatePositions(orderId:string,reservedClosedQty:bigint,positionId: string, side: OrderSide, userId: string, price: bigint, leverage: bigint, qty: bigint) {
     /**
      * we have the existing position, but the order either to settle or take more
      *
@@ -308,7 +338,7 @@ export class Market {
     const presentSide = side;
     if (position.side === presentSide) {
       const oldLp = position.liquidationPrice;
-      position.addFill(price, qty, leverage, position.side);
+      position.addFill(price, qty, leverage, position.side,orderId,reservedClosedQty);
       const newLp = position.liquidationPrice;
       if (oldLp != newLp) {
         //remove the position from old lp
@@ -322,30 +352,28 @@ export class Market {
       if (qty > position.qty) {
         const oldSide = position.side;
         const oldLp = position.liquidationPrice;
-        position.addFill(price, qty, leverage, side);
+        position.addFill(price, qty, leverage, side,orderId,reservedClosedQty);
 
-        const newQty = position.qty;
         //remove the position from lp map
         oldSide === 'SHORT' ? this.removeShort(position, oldLp) : this.removeLong(position, oldLp);
 
-        // let newPos = this.createPosition(userId,newQty,price,side,leverage) ;
-
-        // response.isNewPosition= true;
-        // response.positionId = newPos.positionId;
-        // response.initialMargin  = newPos.initialMargin
+        //new position is created in matchedOrder Execution
+        
       } else {
         //settle the position
         const oldSide = position.side;
         const oldLp = position.liquidationPrice;
-        position.addFill(price, qty, leverage, side);
+        position.addFill(price, qty, leverage, side,orderId,reservedClosedQty);
 
         oldSide === 'SHORT' ? this.removeShort(position, oldLp) : this.removeLong(position, oldLp);
         if (position.state != 'CLOSED') {
-          side === 'SHORT' ? this.addShort(position) : this.addLong(position);
+          position.side === 'SHORT' ? this.addShort(position) : this.addLong(position);
         }
       }
     }
   }
+
+
 
   addLong(position: Position) {
     const liquidationPrice = position.liquidationPrice;

@@ -153,6 +153,26 @@ export class OrderBook {
     return { success: true, updates, order: order };
   }
 
+   getOrderUserId(orderId:string){
+
+    const node = this.ordersRef.get(orderId);
+    if(!node) return { success:false, error:"did not find the order"};
+  
+
+    return {success:true,data:node.value.userId}
+
+  }
+
+   getReservedQty(orderId:string){
+
+    const node = this.ordersRef.get(orderId);
+    if(!node) return { success:false, error:"did not find the order"};
+  
+
+    return {success:true,data:node.value.reservedClosedQty}
+
+  }
+
   addAskOrder(order: Order) {
     const price = order.price;
     //wether level is present or not
@@ -317,10 +337,12 @@ export class OrderBook {
           state: matchedOrder.filled === matchedOrder.qty ? "FILLED" : "PARTIALLY_FILLED",
           timestamp: Date.now().toString(),
           tax: 0n,
+          reservedClosedQty:matchedOrder.reservedClosedQty
         });
 
         //after every matchedorder fullfilled resting order converts to position, remove from the book and if last level add update to th updates
-  
+        let levelWasRemoved = false;
+
         if (matchedOrder.filled === matchedOrder.qty) {
           //matched order is fullfilled from remove from the book
           opSidelevelData.totalQty+=filled;
@@ -328,7 +350,9 @@ export class OrderBook {
           
           //we need to update if level itself removed
           const priceLevel = matchedOrder.side === "SHORT" ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
-          if(priceLevel === undefined){
+          levelWasRemoved = priceLevel === undefined;
+
+          if(levelWasRemoved){
             //level is removed need to update
             
             matchedOrder.side === "SHORT" ? updates.asks.push([executionPrice.toString(),"0"]): updates.bids.push([executionPrice.toString(),"0"]);
@@ -339,6 +363,7 @@ export class OrderBook {
         //incoming order consumed some qty fron the level so add update of the level
         if (order.filled === order.qty) {
           updates.uid = this.updateId++;
+          if(!levelWasRemoved)
           matchedOrder.side === 'SHORT' ? updates.asks.push( [executionPrice.toString(), opSidelevelData.totalQty.toString()]) :updates.bids.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
 
           return {
@@ -357,7 +382,7 @@ export class OrderBook {
 
     }
 
-    //some qty of limit order not matched place it in the book
+    //some qty of limit order not matched, place it in the book
   
       //place in the order book:
       order.side === 'LONG' ? this.addBidOrder(order) : this.addAskOrder(order);
@@ -454,7 +479,10 @@ export class OrderBook {
           state:matchedOrder.filled ===matchedOrder.qty?"FILLED":"PARTIALLY_FILLED",
           timestamp: Date.now().toString(),
           tax: 0n,
+          reservedClosedQty:matchedOrder.reservedClosedQty
         });
+
+        let levelWasRemoved = false;
 
           if (matchedOrder.filled === matchedOrder.qty) {
           //matched order is fullfilled from remove from the book
@@ -463,7 +491,8 @@ export class OrderBook {
           
           //we need to update if level itself removed
           const priceLevel = matchedOrder.side === "SHORT" ? this.asks.get(executionPrice) : this.bids.get(executionPrice);
-          if(priceLevel === undefined){
+          levelWasRemoved = priceLevel === undefined;
+          if(levelWasRemoved){
             //level is removed need to update
             
             matchedOrder.side === "SHORT" ? updates.asks.push([executionPrice.toString(),"0"]): updates.bids.push([executionPrice.toString(),"0"]);
@@ -474,6 +503,8 @@ export class OrderBook {
            //incoming order consumed some qty fron the level so add update of the level
         if (order.filled === order.qty) {
           updates.uid = this.updateId++;
+
+          if(!levelWasRemoved)
           matchedOrder.side === 'SHORT' ? updates.asks.push( [executionPrice.toString(), opSidelevelData.totalQty.toString()]) :updates.bids.push([executionPrice.toString(), opSidelevelData.totalQty.toString()]);
 
           return {
@@ -501,24 +532,25 @@ export class OrderBook {
     }
 
     return {
-      event: 'ORDER_FILLED' as const,
+      event: 'ORDER_FILLED_PARTIALLY' as const,
       payload: {
         type: order.type,
         qty: qty,
-        state: 'FILLED',
+        state: 'PARTIALLY_FILLED',
         userId,
         side,
         marketId: order.assetId,
         orderId: order.orderId,
-        filled: order.qty,
+        filled: order.filled,
         price: order.price,
         matchedOrders,
-        updates: {
+        updates: {...updates,
           uid:this.updateId++,
-          asks,
-          bids,
+        
         },
       },
     };
   }
+
+ 
 }

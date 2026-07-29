@@ -13,6 +13,11 @@ function createPosition() {
   );
 }
 
+function closePosition(position: Position, qty: bigint, price = 120n) {
+  expect(position.reserveClosedQty("close-order", qty).success).toBe(true);
+  position.addFill(price, qty, 10n, "SHORT", "close-order", qty);
+}
+
 describe("Position Accounting Invariants", () => {
   it("should calculate exact weighted average price", () => {
     const position = createPosition();
@@ -73,12 +78,7 @@ describe("Position Accounting Invariants", () => {
 
     const beforeMargin = position.initialMargin;
 
-    position.addFill(
-      120n,
-      5n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 5n);
 
     expect(position.qty).toBe(5n);
 
@@ -92,12 +92,7 @@ describe("Position Accounting Invariants", () => {
     const marginPerQtyBefore =
       position.initialMargin / position.qty;
 
-    position.addFill(
-      120n,
-      4n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 4n);
 
     const marginPerQtyAfter =
       position.initialMargin / position.qty;
@@ -106,49 +101,24 @@ describe("Position Accounting Invariants", () => {
       .toBe(marginPerQtyBefore);
   });
 
-  it("should recalculate margin correctly after reversal", () => {
+  it("should reject a close reservation larger than the position", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.side).toBe("SHORT");
-
-    expect(position.qty).toBe(5n);
-
-    // net qty = 5
-    // margin = (5 * 120) / 10
-    expect(position.initialMargin).toBe(60n);
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.side).toBe("LONG");
+    expect(position.qty).toBe(10n);
+    expect(position.initialMargin).toBe(100n);
   });
 
-  it("should use fill price as avg price after reversal", () => {
+  it("should leave the average price unchanged when an oversized close is rejected", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.avgPrice).toBe(120n);
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.avgPrice).toBe(100n);
   });
 
-  it("should preserve quantity accounting after reversal", () => {
+  it("should not reserve quantity for an oversized close", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.qty).toBe(5n);
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.reservedQuantity).toBe(0n);
   });
 
   it("should preserve side after same side fills", () => {
@@ -188,12 +158,7 @@ describe("Position Accounting Invariants", () => {
   const beforeRatio =
     position.initialMargin / position.qty;
 
-  position.addFill(
-    120n,
-    5n,
-    10n,
-    "SHORT"
-  );
+  closePosition(position, 5n);
 
   const afterRatio =
     position.initialMargin / position.qty;
@@ -372,12 +337,7 @@ describe("Position invariants checks", () => {
     const previousAvgPrice =
       position.avgPrice;
 
-    position.addFill(
-      120n,
-      5n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 5n);
 
     expect(position.qty).toBe(5n);
 
@@ -394,12 +354,7 @@ describe("Position invariants checks", () => {
     const beforePrice =
       position.avgPrice;
 
-    position.addFill(
-      120n,
-      5n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 5n);
 
     expect(position.avgPrice)
       .toBe(beforePrice);
@@ -408,90 +363,41 @@ describe("Position invariants checks", () => {
   it("should reduce quantity correctly", () => {
     const position = createPosition();
 
-    position.addFill(
-      120n,
-      4n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 4n);
 
     expect(position.qty).toBe(6n);
   });
 
-  it("should reverse position", () => {
+  it("should reject an oversized close reservation", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.side)
-      .toBe("SHORT");
-
-    expect(position.qty)
-      .toBe(5n);
-
-    expect(position.avgPrice)
-      .toBe(120n);
-
-    expect(position.state)
-      .toBe("OPEN");
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.side).toBe("LONG");
+    expect(position.qty).toBe(10n);
+    expect(position.state).toBe("OPEN");
   });
 
-  it("should flip side during reversal", () => {
+  it("should retain the existing side when an oversized close is rejected", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.side)
-      .toBe("SHORT");
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.side).toBe("LONG");
   });
 
-  it("should preserve net quantity after reversal", () => {
+  it("should retain the existing quantity when an oversized close is rejected", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.qty)
-      .toBe(5n);
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.qty).toBe(10n);
   });
 
-  it("should use fill price as avg price after reversal", () => {
+  it("should retain the existing average price when an oversized close is rejected", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.avgPrice)
-      .toBe(120n);
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.avgPrice).toBe(100n);
   });
 
   it("should close position", () => {
     const position = createPosition();
 
-    position.addFill(
-      120n,
-      10n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 10n);
 
     expect(position.state)
       .toBe("CLOSED");
@@ -708,12 +614,7 @@ describe("Position", () => {
     const previousAvgPrice =
       position.avgPrice;
 
-    position.addFill(
-      120n,
-      5n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 5n);
 
     expect(position.qty).toBe(5n);
 
@@ -724,38 +625,18 @@ describe("Position", () => {
       .toBe("OPEN");
   });
 
-  it("should reverse position", () => {
+  it("should reject an oversized close reservation", () => {
     const position = createPosition();
-
-    position.addFill(
-      120n,
-      15n,
-      10n,
-      "SHORT"
-    );
-
-    expect(position.side)
-      .toBe("SHORT");
-
-    expect(position.qty)
-      .toBe(5n);
-
-    expect(position.avgPrice)
-      .toBe(120n);
-
-    expect(position.state)
-      .toBe("OPEN");
+    expect(position.reserveClosedQty("oversized-close", 15n).success).toBe(false);
+    expect(position.side).toBe("LONG");
+    expect(position.qty).toBe(10n);
+    expect(position.state).toBe("OPEN");
   });
 
   it("should close position", () => {
     const position = createPosition();
 
-    position.addFill(
-      120n,
-      10n,
-      10n,
-      "SHORT"
-    );
+    closePosition(position, 10n);
 
     expect(position.state)
       .toBe("CLOSED");

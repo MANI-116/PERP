@@ -35,23 +35,39 @@ function createMarket(marketId: string): CreateMarketResponse {
   });
 }
 
+
+/**
+ * 
+ * @param orderId 
+ * @param marketId 
+ * @returns 
+ * 
+ * orders are tracked in users lock amount management and positions reserved qty profile and in order book
+ */
 function deleteOrder(orderId: string, marketId: string): DeleteOrderResponse {
   const market = marketManager.getMarket(marketId);
   if (!market) {
     return { success: false, error: 'orderbook not found', orderId, marketId };
   }
+  //check wether this order have any reserved closed qty 
+  //if order have reserved closedqty > 0 release those qty for next order to avail those qty
+
+  const  res = market.orderbook.getOrderUserId(orderId); 
+  if(!res.success) throw new Error("[critical] order doesnot assiciate with userId");
+
+  const userId = res.data as string;
+  const reservedClosedQty = market.orderbook.getReservedQty(orderId);
+  if(reservedClosedQty.success && reservedClosedQty.data! > 0){
+    const position = userManager.getPosition(userId,marketId);
+    if(!position.success)throw new Error("[critical] order have the reserved closed qty but user profile does not found position");
+
+    market.releaseReservedCloseQty(position.positionId,orderId);
+
+  }
   const response = market.orderbook.deleteOrder(orderId) as any;
   if (response.success && response.order) {
     const order = response.order;
-    const remainingQty = BigInt(order.qty) - BigInt(order.filled);
-    const originalOpeningQty = BigInt(order.originalOpeningQty);
-    const unfilledOpeningQty =
-      remainingQty < originalOpeningQty ? remainingQty : originalOpeningQty;
-    if (unfilledOpeningQty > 0n) {
-      const refundAmount =
-        (unfilledOpeningQty * BigInt(order.price)) / BigInt(order.leverage);
-      userManager.unlockAmount(order.userId, refundAmount);
-    }
+    userManager.releaseLockAmount(order.userId,orderId);
   }
   console.log(response);
   return {

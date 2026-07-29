@@ -645,6 +645,8 @@ describe("Market", () => {
       );
 
     market.updatePositions(
+      "increase-order",
+      0n,
       positionId,
       "LONG",
       "user1",
@@ -676,7 +678,10 @@ describe("Market", () => {
         100n
       );
 
+    expect(market.reserveClosedQty(positionId, "reduce-order", 5n).success).toBe(true);
     market.updatePositions(
+      "reduce-order",
+      5n,
       positionId,
       "SHORT",
       "user1",
@@ -708,7 +713,10 @@ describe("Market", () => {
         100n
       );
 
+    expect(market.reserveClosedQty(positionId, "close-order", 10n).success).toBe(true);
     market.updatePositions(
+      "close-order",
+      10n,
       positionId,
       "SHORT",
       "user1",
@@ -727,7 +735,7 @@ describe("Market", () => {
     expect(true).toBe(true);
   });
 
-  it("should create new position on reversal", () => {
+  it("should reject a close reservation larger than the position", () => {
     const market = createMarket();
 
     const { positionId } =
@@ -739,17 +747,8 @@ describe("Market", () => {
         100n
       );
 
-    const result =
-      market.updatePositions(
-        positionId,
-        "SHORT",
-        "user1",
-        120n,
-        10n,
-        15n
-      );
-
-
+    expect(market.reserveClosedQty(positionId, "oversized-close", 15n).success)
+      .toBe(false);
   });
 
   

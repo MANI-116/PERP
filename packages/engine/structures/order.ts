@@ -15,13 +15,23 @@ const orderSnapshotSchema = z.object({
   filled: z.string().transform((p) => BigInt(p)),
   initialMargin: z.string().transform((p) => BigInt(p)),
   originalOpeningQty: z.string().transform((p) => BigInt(p)),
+  reservedClosedQty:z.string().transform((p) => BigInt(p))
 });
 
+/**
+ * order also will have reservedClosedQty:
+ * snapshots to store it
+ * recovery needs be there
+ * close order ---> release qty
+ * fills --> need to be consume the qty
+ * 
+ */
 export class Order implements GiveSnapshot, Id {
   public initialMargin: bigint;
   public filled: bigint = 0n;
   public status: OrderStatus = 'OPEN';
   public id: string;
+  public reservedClosedQty:bigint = 0n;
   constructor(
     public orderId: string,
     public userId: string,
@@ -51,6 +61,7 @@ export class Order implements GiveSnapshot, Id {
       filled: this.filled.toString(),
       initialMargin: this.initialMargin.toString(),
       originalOpeningQty: this.originalOpeningQty.toString(),
+      reservedClosedQty:this.reservedClosedQty.toString()
     });
   }
   static createFromSnapshot(orderSnapshotString: string): Order | null {
@@ -71,11 +82,13 @@ export class Order implements GiveSnapshot, Id {
       status,
       originalOpeningQty,
       filled,
+      reservedClosedQty
     } = parseData.data;
     const order = new Order(orderId, userId, assetId, qty, side, price, leverage, type, originalOpeningQty);
     order.status = status;
     order.initialMargin = initialMargin;
     order.filled = filled;
+    order.reservedClosedQty = reservedClosedQty;
     return order;
   }
 }

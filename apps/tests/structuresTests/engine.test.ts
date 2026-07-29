@@ -342,7 +342,7 @@ describe("Engine Financial Integrity", () => {
     expect(taker.collateral.available).toBeGreaterThan(0n); // Margin + PnL released to available
   });
 
-  it("should trigger bankruptcy path on insolvent reversal", () => {
+  it("should cap an oversized opposite order instead of reversing", () => {
     const { engine, userManager, marketManager } =
       createFreshExchange();
 
@@ -385,7 +385,7 @@ describe("Engine Financial Integrity", () => {
         })
       );
 
-    expect(response).toBeDefined();
+    expect(response.event).toBe("ORDER_ACCEPTED");
   });
 
 });
@@ -711,7 +711,7 @@ describe("Engine Position Lifecycle", () => {
 //     }
 
 //   });
-it("should reverse position when realized loss is within available margin", () => {
+it("should cap an oversized opposite order and fully close the position", () => {
 
   const {
     engine,
@@ -771,12 +771,7 @@ it("should reverse position when realized loss is within available margin", () =
   expect(before.success)
     .toBe(true);
 
-  const oldPositionId =
-    before.success
-      ? before.positionId
-      : "";
-
-  // reverse with only 50 loss
+  // The 15-qty opposite order is reduced to the existing 10-qty position.
   engine.placeOrder(
     createOrder({
       orderId: "m2",
@@ -803,13 +798,7 @@ it("should reverse position when realized loss is within available margin", () =
       "btc-usdt"
     );
 
-  expect(after.success)
-    .toBe(true);
-
-  if (after.success) {
-    expect(after.positionId)
-      .not.toBe(oldPositionId);
-  }
+  expect(after.success).toBe(false);
 
 });
 
@@ -933,11 +922,11 @@ describe("Engine", () => {
 
     expect(
       user.collateral.available
-    ).toBe(9900n);
+    ).toBe(9899n);
 
     expect(
       user.collateral.locked
-    ).toBe(100n);
+    ).toBe(101n);
   });
 
   it("should match maker and taker orders", () => {
@@ -1099,6 +1088,146 @@ describe("Engine", () => {
     expect(
       takerPosition.success
     ).toBe(true);
+  });
+});
+
+describe("Order-specific lock accounting", () => {
+  it("releases only the remaining lock when a partially filled order is cancelled", () => {
+    const { engine, userManager, marketManager } = createFreshExchange();
+    const maker = new User("maker");
+    const taker = new User("taker");
+    const takerOrderId = "partial-taker";
+
+    userManager.addUser(maker);
+    userManager.addUser(taker);
+    userManager.rampUser("maker", 1000n);
+    userManager.rampUser("taker", 1000n);
+    marketManager.addMarket(createMarket());
+
+    engine.placeOrder(createOrder({
+      orderId: "partial-maker",
+      userId: "maker",
+      side: "SHORT",
+      qty: 4n,
+      price: 100n,
+    }));
+
+    const fillResponse = engine.placeOrder(createOrder({
+      orderId: takerOrderId,
+      userId: "taker",
+      side: "LONG",
+      qty: 10n,
+      price: 100n,
+    }));
+
+    expect(fillResponse.event).toBe("ORDER_FILLED_PARTIALLY");
+    expect(taker.collateral.locked).toBe(60n);
+
+    const market = marketManager.getMarket("btc-usdt")!;
+    const deleted = market.orderbook.deleteOrder(takerOrderId) as any;
+    expect(deleted.success).toBe(true);
+    expect(userManager.releaseLockAmount("taker", takerOrderId).success).toBe(true);
+    expect(taker.collateral.locked).toBe(0n);
+    expect(taker.collateral.available).toBe(960n);
+  });
+
+  it("executes a full taker fill across multiple makers before releasing its lock", () => {
+    const { engine, userManager, marketManager } = createFreshExchange();
+    const makerOne = new User("maker-one");
+    const makerTwo = new User("maker-two");
+    const taker = new User("taker");
+
+    userManager.addUser(makerOne);
+    userManager.addUser(makerTwo);
+    userManager.addUser(taker);
+    userManager.rampUser("maker-one", 1000n);
+    userManager.rampUser("maker-two", 1000n);
+    userManager.rampUser("taker", 1000n);
+    marketManager.addMarket(createMarket());
+
+    engine.placeOrder(createOrder({ orderId: "maker-one-order", userId: "maker-one", side: "SHORT", qty: 4n, price: 100n }));
+    engine.placeOrder(createOrder({ orderId: "maker-two-order", userId: "maker-two", side: "SHORT", qty: 6n, price: 100n }));
+
+    const response = engine.placeOrder(createOrder({
+      orderId: "multi-maker-taker",
+      userId: "taker",
+      side: "LONG",
+      qty: 10n,
+      price: 100n,
+    }));
+
+    expect(response.event).toBe("ORDER_FILLED");
+    expect(taker.collateral.locked).toBe(0n);
+    expect(taker.collateral.available).toBe(900n);
+    expect(userManager.getPosition("taker", "btc-usdt").success).toBe(true);
+  });
+
+  it("preserves a resting order lock through snapshot recovery", () => {
+    const { engine, userManager, marketManager } = createFreshExchange();
+    const user = new User("snapshot-user");
+    const orderId = "snapshot-resting-order";
+
+    userManager.addUser(user);
+    userManager.rampUser("snapshot-user", 1000n);
+    marketManager.addMarket(createMarket());
+
+    engine.placeOrder(createOrder({ orderId, userId: "snapshot-user", side: "SHORT", qty: 10n, price: 100n }));
+    const snapshot = engine.getSnapshot();
+
+    Engine.reset();
+    UserManager.reset();
+    MarketManager.reset();
+
+    expect(Engine.createFromSnapshot(snapshot)).not.toBeNull();
+    const restoredUsers = UserManager.create();
+    const release = restoredUsers.releaseLockAmount("snapshot-user", orderId);
+    const equity = restoredUsers.getUserEquity("snapshot-user");
+
+    expect(release.success).toBe(true);
+    expect(equity.success).toBe(true);
+    if (equity.success) {
+      expect(equity.data.available).toBe("1000");
+      expect(equity.data.locked).toBe("0");
+    }
+  });
+});
+
+describe("Position indexing regression", () => {
+  it("removes a position after a partial close followed by a final close", () => {
+    const { engine, userManager, marketManager } = createFreshExchange();
+    const alice = new User("alice");
+    const opener = new User("opener");
+    const firstCloser = new User("first-closer");
+    const finalCloser = new User("final-closer");
+
+    userManager.addUser(alice);
+    userManager.addUser(opener);
+    userManager.addUser(firstCloser);
+    userManager.addUser(finalCloser);
+    userManager.rampUser("alice", 10_000n);
+    userManager.rampUser("opener", 10_000n);
+    userManager.rampUser("first-closer", 10_000n);
+    userManager.rampUser("final-closer", 10_000n);
+    marketManager.addMarket(createMarket());
+
+    // Alice opens LONG 10 against the opener's resting SHORT order.
+    engine.placeOrder(createOrder({ orderId: "open-short", userId: "opener", side: "SHORT", qty: 10n, price: 100n }));
+    engine.placeOrder(createOrder({ orderId: "open-long", userId: "alice", side: "LONG", qty: 10n, price: 100n }));
+
+    // Alice closes 5, leaving a LONG 5 position that must remain indexed as LONG.
+    engine.placeOrder(createOrder({ orderId: "partial-close", userId: "alice", side: "SHORT", qty: 5n, price: 100n }));
+    engine.placeOrder(createOrder({ orderId: "partial-close-match", userId: "first-closer", side: "LONG", qty: 5n, price: 100n }));
+
+    // Closing the final 5 must remove Alice's position reference completely.
+    engine.placeOrder(createOrder({ orderId: "final-close", userId: "alice", side: "SHORT", qty: 5n, price: 100n }));
+    engine.placeOrder(createOrder({ orderId: "final-close-match", userId: "final-closer", side: "LONG", qty: 5n, price: 100n }));
+
+    expect(userManager.getPosition("alice", "btc-usdt").success).toBe(false);
+    const positions = userManager.getPositions("alice");
+    expect(positions.success).toBe(true);
+    if (positions.success) {
+      expect(positions.data.positions).toHaveLength(0);
+    }
   });
 });
 

@@ -60,14 +60,14 @@ export class UserManager {
   }
   ///TODO////
   getPositions(userId: string) {
-    return this._getPositionsByState(userId, undefined);
+    return this._getPositionsByState(userId);
   }
 
   getClosedPositions(userId: string) {
     return this._getPositionsByState(userId, 'CLOSED');
   }
 
-  private _getPositionsByState(userId: string, filterState: string | undefined) {
+  private _getPositionsByState(userId: string) {
     const user = this.users.get(userId);
     if (user === undefined) {
       return { success: false, message: 'user not found' };
@@ -95,7 +95,6 @@ export class UserManager {
       });
       if (!data.success || !data.data) return;
       const p = data.data;
-      if (filterState && p.state !== filterState) return;
       positions.push({
         id: p.id,
         userId: p.userId,
@@ -131,6 +130,7 @@ export class UserManager {
         unrealizedPnL += data.data.unrealizedPnL;
       }
     });
+  console.log(`${userId} equity breakdown:locked:${user.collateral.locked}, available:${user.collateral.available},positionsUnrealizedPnL:${unrealizedPnL}`)
 
     const equity = (user.collateral.locked + user.collateral.available + unrealizedPnL).toString();
     return { success: true, data: { equity ,available:user.collateral.available.toString(),locked:user.collateral.locked.toString()} };
@@ -140,42 +140,33 @@ export class UserManager {
     return this.users.get(userId) != undefined;
   }
 
-  lockAmount(userId: string, amount: bigint) {
+  lockAmount(userId: string, amount: bigint,orderId:string) {
     const user = this.users.get(userId);
     if (!user) throw new Error('[critical] did not find user');
-    if (user.collateral.available > amount) {
-      user.collateral.available -= amount;
-      user.collateral.locked += amount;
 
-      console.log('amount locked:', amount);
-      return { success: true, message: `amount locked-${amount}: remaining amount-${user.collateral.available}` };
-    }
-    return {
-      success: false,
-      error: `not have enough amount: available ${user.collateral.available}: needed ${amount}`,
-    };
+    return user.lockAmount(amount,orderId)
+    
   }
 
-  unlockAmount(userId: string, amount: bigint) {
+  unlockAmount(userId:string,orderId:string,amount:bigint){
+     const user = this.users.get(userId);
+    if (!user) return {success:false,error:"user not found"};
+   
+    return user.unlockAmount(orderId,amount)
+
+  }
+  releaseLockAmount(userId: string,orderId:string) {
     const user = this.users.get(userId);
-    if (!user) return false;
-    console.log('amount want to unlock-', amount);
-    if (user.collateral.locked >= amount) {
-      user.collateral.locked -= amount;
-      user.collateral.available += amount;
-      return true;
-    }
-    return false;
+    if (!user) return {success:false,error:"user not found"};
+   
+    return user.releaseLockAmount(orderId)
   }
 
-  debitLockAmount(userId: string, amount: bigint) {
+  debitLockAmount(userId: string,orderId:string, amount: bigint) {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'user not found', code: 404 };
-    if (user.collateral.locked >= amount) {
-      user.collateral.locked -= amount;
-      return { success: true, message: 'amount deducted' };
-    }
-    return { success: false, error: 'insufficient locked balance' };
+    
+    return user.debitLockAmount(amount,orderId)
   }
 
   getPosition(
@@ -195,6 +186,9 @@ export class UserManager {
   }
   removePosition(userId: string, marketId: string) {
     const user = this.users.get(userId);
+    if(!user){
+      throw new Error("[critical] user not found")
+    }
     if (user) user.positions.delete(marketId);
   }
   giveSnapshot() {

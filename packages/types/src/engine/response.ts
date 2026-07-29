@@ -23,6 +23,7 @@ export interface DeleteOrderResponse{
 }
 
 export interface MatchOrder{
+  reservedClosedQty:bigint,
     price:bigint,
     orderId:string,
     userId:string,
@@ -42,7 +43,8 @@ export interface TransmitMatchOrder{
     timestamp:string,
     leverage:string,
     side:OrderSide,
-    tax:string
+    tax:string,
+    reservedClosedQty:string
 }
 export interface OrderFilledResponse extends TransmitOrder{
    
@@ -51,6 +53,7 @@ export interface OrderFilledResponse extends TransmitOrder{
     leverage:string,
     initialMargin:string,
     tax:string,
+    reservedClosedQty:string,
     updates:{uid:number,asks:string[][],bids:string[][]}
 }
 

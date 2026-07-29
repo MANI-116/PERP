@@ -187,14 +187,16 @@ describe("Position Lifecycle", () => {
     expect(after.success).toBe(true);
   });
 
-  it("opposite-side fill > position qty flips position", () => {
-    const { engine } = seededExchange();
+  it("opposite-side order larger than position is capped to close-only quantity", () => {
+    const { engine, userManager } = seededExchange();
     engine.placeOrder(createOrder({ orderId: "m1", userId: "maker", side: "SHORT", qty: 10n, price: 100n }));
     engine.placeOrder(createOrder({ orderId: "t1", userId: "taker", side: "LONG", qty: 10n, price: 100n }));
-    const res = engine.placeOrder(createOrder({ orderId: "m2", userId: "maker", side: "LONG", qty: 15n, price: 120n }));
-    // Taker has LONG 10, takes SHORT 15 → NET SHORT 5 → position flips
-    // This should succeed (not throw bankruptcy)
-    expect(res).toBeDefined();
+    engine.placeOrder(createOrder({ orderId: "m2", userId: "maker", side: "LONG", qty: 15n, price: 120n }));
+    const res = engine.placeOrder(createOrder({ orderId: "t2", userId: "taker", side: "SHORT", qty: 15n, price: 120n }));
+
+    expect(res.event).toBe("ORDER_FILLED");
+    expect(userManager.getPosition("maker", "btc-usdt").success).toBe(false);
+    expect(userManager.getPosition("taker", "btc-usdt").success).toBe(false);
   });
 });
 
@@ -446,8 +448,8 @@ describe("Market Order", () => {
     const { engine } = seededExchange();
     engine.placeOrder(createOrder({ orderId: "m1", userId: "maker", side: "SHORT", qty: 5n, price: 100n }));
     const res = engine.placeOrder(createOrder({ orderId: "t1", userId: "taker", side: "LONG", qty: 10n, price: 0n, type: "MARKET" }));
-    // Depending on engine logic, this may be FILLED_PARTIALLY or fill what's available
-    expect(res.event).toBe("ORDER_REJECTED" as any); // Insufficient liquidity should reject
+    expect(res.event).toBe("ORDER_FILLED_PARTIALLY" as any);
+    expect(res.payload.filled).toBe("5");
   });
 });
 

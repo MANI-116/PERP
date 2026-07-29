@@ -63,13 +63,14 @@ describe("UserManager", () => {
       1000n
     );
 
-    const success =
+    const result =
       manager.lockAmount(
         "lock-user",
-        500n
+        500n,
+        "lock-order"
       );
 
-    expect(success).toBe(true);
+    expect(result.success).toBe(true);
 
     expect(
       user.collateral.available
@@ -92,13 +93,14 @@ describe("UserManager", () => {
       100n
     );
 
-    const success =
+    const result =
       manager.lockAmount(
         "poor-user",
-        1000n
+        1000n,
+        "poor-order"
       );
 
-    expect(success).toBe(false);
+    expect(result.success).toBe(false);
   });
 
   it("should debit locked amount", () => {
@@ -115,12 +117,14 @@ describe("UserManager", () => {
 
     manager.lockAmount(
       "debit-user",
-      600n
+      600n,
+      "debit-order"
     );
 
     const res =
       manager.debitLockAmount(
         "debit-user",
+        "debit-order",
         200n
       );
 
