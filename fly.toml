@@ -1,46 +1,50 @@
-# fly.toml app configuration file generated for perpx-backend on 2026-07-11T16:06:41+05:30
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# fly.toml
 
-app = 'perpx-backend'
-primary_region = 'iad'
+app = "perpx-backend"
+primary_region = "iad"
 
 [build]
-  dockerfile = 'Dockerfile'
+  dockerfile = "Dockerfile"
 
 [env]
-  NODE_ENV = 'production'
-  PORT = '3001'
+  NODE_ENV = "production"
+  PORT = "3001"
 
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = 'off'
+
+  # Allow the machine to sleep when idle
+  auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
-  processes = ['app']
+
+  # Don't keep any machine running continuously
+  min_machines_running = 0
+
+  processes = ["app"]
 
 [[services]]
-  protocol = 'tcp'
+  protocol = "tcp"
   internal_port = 8080
   ports = []
-  processes = ['app']
+  processes = ["app"]
 
   [services.concurrency]
-    type = 'connections'
-    hard_limit = 100
+    type = "connections"
     soft_limit = 50
+    hard_limit = 100
 
 [checks]
   [checks.health]
-    type = 'http'
-    interval = '30s'
-    timeout = '5s'
-    path = '/markets'
+    type = "http"
+    interval = "30s"
+    timeout = "5s"
+    path = "/markets"
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  cpu_kind = "shared"
   cpus = 1
-  memory_mb = 1024
+
+  # Reduce RAM to the minimum your app comfortably needs.
+  # Increase this if your app runs out of memory.
+  memory = "256mb"
