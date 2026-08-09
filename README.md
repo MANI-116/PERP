@@ -8,25 +8,11 @@
 
 </div>
 
+> ⚠️ **Status:** Engineering / educational prototype. Not suitable for real-money trading, custody, or production financial use.
 
-## Contents
-
-- [Introduction](#introduction)
-- [Architecture](#architecture)
-- [Order Lifecycle](#order-lifecycle)
-- [Engine Design](#engine-design)
-- [Order Book](#order-book)
-- [Margin & Positions](#margin--positions)
-- [Liquidation](#liquidation)
-- [Event-Driven Communication](#event-driven-communication)
-- [Persistence](#persistence)
-- [Realtime Updates](#realtime-updates)
-- [Snapshots & Recovery](#snapshots--recovery)
-- [Consistency & Idempotency](#consistency--idempotency)
-- [Testing](#testing)
-- [Tech Stack](#tech-stack)
-- [Project Evolution](#project-evolution)
-- [Local Development](#local-development)
+<p align="center">
+  <a href="#introduction">Introduction</a> · <a href="#architecture">Architecture</a> · <a href="#order-lifecycle">Order Lifecycle</a> · <a href="#engine-design">Engine Design</a> · <a href="#order-book">Order Book</a> · <a href="#margin--positions">Margin & Positions</a> · <a href="#liquidation">Liquidation</a> · <a href="#event-driven-communication">Event-Driven Communication</a> · <a href="#persistence">Persistence</a> · <a href="#realtime-updates">Realtime Updates</a> · <a href="#snapshots--recovery">Snapshots & Recovery</a> · <a href="#consistency--idempotency">Consistency</a> · <a href="#testing">Testing</a> · <a href="#tech-stack">Tech Stack</a> · <a href="#local-development">Local Development</a>
+</p>
 
 ---
 
@@ -34,11 +20,7 @@
 
 PerpX explores the engineering problems underneath a centralized perpetual-futures exchange: **deterministic matching, position management, margin, liquidation, asynchronous processing, realtime updates, persistence, and crash recovery.**
 
-The central design decision is:
-
 > **The matching engine owns authoritative trading state. Services outside the engine communicate with it through commands and events.**
-
-The high-level flow is:
 
 ```text
 Client → Backend → Command Stream → Matching Engine → Response Stream
@@ -51,13 +33,13 @@ Client → Backend → Command Stream → Matching Engine → Response Stream
 
 ## Architecture
 
-The system is intentionally split into independent responsibilities: the trading client handles presentation, the backend handles application concerns, the matching engine owns trading state, and downstream consumers handle persistence and realtime delivery.
+The system separates the trading client, application/backend layer, authoritative matching engine, persistence, and realtime delivery.
 
 <p align="center">
   <img src="./docs/peps.png" alt="PerpX System Architecture" width="100%" />
 </p>
 
-### System components
+### System Components
 
 | Component | Responsibility |
 |---|---|
