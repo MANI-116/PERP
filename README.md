@@ -1,67 +1,77 @@
+<div align="center">
+
 # PerpX ⚡
 
 ### Event-Driven Perpetual Futures Exchange
 
-PerpX is a perpetual-futures exchange prototype built around a **deterministic in-memory matching engine**, **Redis Streams**, **PostgreSQL**, **WebSockets**, and a **Next.js trading client**.
+**A centralized perpetual-futures exchange built around a deterministic matching engine and event-driven architecture.**
 
-> **Client → Backend → Command Stream → Matching Engine → Response Stream → Consumers → Client / Persistence**
+</div>
 
 > ⚠️ **Status:** Engineering / educational prototype. Not suitable for real-money trading, custody, or production financial use.
 
-**Introduction · Architecture · Order Lifecycle · Engine Design · Order Book · Margin & Positions · Liquidation · Event-Driven Communication · Persistence · Realtime Updates · Snapshots & Recovery · Consistency · Testing · Tech Stack · Local Development**
+## Contents
+
+- [Introduction](#introduction)
+- [Architecture](#architecture)
+- [Order Lifecycle](#order-lifecycle)
+- [Engine Design](#engine-design)
+- [Order Book](#order-book)
+- [Margin & Positions](#margin--positions)
+- [Liquidation](#liquidation)
+- [Event-Driven Communication](#event-driven-communication)
+- [Persistence](#persistence)
+- [Realtime Updates](#realtime-updates)
+- [Snapshots & Recovery](#snapshots--recovery)
+- [Consistency & Idempotency](#consistency--idempotency)
+- [Testing](#testing)
+- [Tech Stack](#tech-stack)
+- [Project Evolution](#project-evolution)
+- [Local Development](#local-development)
 
 ---
 
 ## Introduction
 
-The central design decision is simple:
+PerpX explores the engineering problems underneath a centralized perpetual-futures exchange: **deterministic matching, position management, margin, liquidation, asynchronous processing, realtime updates, persistence, and crash recovery.**
+
+The central design decision is:
 
 > **The matching engine owns authoritative trading state. Services outside the engine communicate with it through commands and events.**
 
-PerpX explores the engineering problems underneath a centralized perpetual-futures exchange: deterministic matching, position management, margin, liquidation, asynchronous processing, realtime updates, persistence, and crash recovery.
+The high-level flow is:
+
+```text
+Client → Backend → Command Stream → Matching Engine → Response Stream
+                                                    ├──► HTTP Response
+                                                    ├──► PostgreSQL
+                                                    └──► WebSocket Client
+```
 
 ---
 
 ## Architecture
 
-![PerpX System Architecture](./docs/peps.png)
+The system is intentionally split into independent responsibilities: the trading client handles presentation, the backend handles application concerns, the matching engine owns trading state, and downstream consumers handle persistence and realtime delivery.
 
-### System flow
+<p align="center">
+  <img src="./docs/peps.png" alt="PerpX System Architecture" width="100%" />
+</p>
 
-```text
-Client
-  │
-  │ HTTP / WebSocket
-  ▼
-Backend API
-  │
-  │ Command + correlationId
-  ▼
-Redis Command Stream
-  │
-  ▼
-Matching Engine
-  │
-  │ Engine Events
-  ▼
-Redis Response Stream
-  ├──────────────► Response Consumer ──► HTTP response
-  ├──────────────► DB Poller ──────────► PostgreSQL
-  └──────────────► WebSocket Consumer ─► Trading Client
-```
+### System components
 
 | Component | Responsibility |
 |---|---|
-| **Next.js client** | Trading UI, orderbook, orders, positions |
+| **Next.js Client** | Trading UI, orderbook, orders, positions |
 | **Backend API** | Authentication, validation, command creation, request correlation |
-| **Command stream** | Delivers commands to the engine |
-| **Matching engine** | Owns authoritative trading state and executes trades |
-| **Response/event stream** | Publishes engine results and state-change events |
-| **Response consumer** | Resolves asynchronous HTTP requests using correlation IDs |
-| **DB poller** | Projects engine events into PostgreSQL |
-| **WebSocket server** | Delivers realtime market updates |
-| **Mark-price poller** | Converts external prices into engine updates |
-| **Snapshot store** | Persists engine state for recovery |
+| **Redis Command Stream** | Delivers commands to the engine |
+| **Matching Engine** | Authoritative trading state and trade execution |
+| **Redis Response Stream** | Publishes engine results and state-change events |
+| **Response Consumer** | Resolves asynchronous HTTP requests using correlation IDs |
+| **DB Poller** | Projects engine events into PostgreSQL |
+| **WebSocket Server** | Delivers realtime market and account updates |
+| **Mark Price Poller** | Converts external price data into engine updates |
+| **Snapshot Store** | Persists engine state for recovery |
 
 ---
 
@@ -71,6 +81,7 @@ An order does not execute inside an HTTP handler. The API validates and publishe
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant C as Client
     participant A as Backend API
     participant Q as Redis Streams
@@ -152,6 +163,8 @@ At the same price, the earliest eligible order is matched first. This makes matc
 
 ## Margin & Positions
 
+Perpetual futures extend the spot order book with leveraged positions, collateral, margin, PnL, and risk state.
+
 ```mermaid
 flowchart LR
     U[User] --> B[Available Balance]
@@ -161,16 +174,16 @@ flowchart LR
     P --> M[Margin / PnL]
     MP[Mark Price] --> M
     B --> M
-    M --> R{Risk Check}
+    M --> R[Risk Check]
     R -->|Healthy| N[Continue]
     R -->|Unsafe| Q[Liquidation]
 ```
 
-Perpetual futures extend the spot order book with leveraged positions, collateral, margin, PnL, and risk state.
-
 ---
 
 ## Liquidation
+
+Liquidation is represented explicitly in engine state rather than being treated as a normal order-flow side effect.
 
 ```mermaid
 flowchart TB
@@ -188,6 +201,8 @@ The explicit `LIQUIDATING` state prevents normal trading operations from incorre
 ---
 
 ## Event-Driven Communication
+
+Redis Streams form the communication boundary between the backend and the engine.
 
 ```mermaid
 flowchart LR
@@ -343,4 +358,8 @@ Configure the required PostgreSQL, Redis, authentication, and external market-da
 
 PerpX is an educational engineering project. It is **not** intended for real-money trading, custody, or production financial use.
 
+<div align="center">
+
 ### Built to understand what happens underneath a trading platform.
+
+</div>
