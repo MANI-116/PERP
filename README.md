@@ -8,7 +8,6 @@
 
 </div>
 
-> ⚠️ **Status:** Engineering / educational prototype. Not suitable for real-money trading, custody, or production financial use.
 
 ## Contents
 
