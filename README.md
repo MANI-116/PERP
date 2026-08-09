@@ -2,271 +2,194 @@
 
 ### Event-Driven Perpetual Futures Exchange
 
-PerpX is a **perpetual futures exchange prototype** built around a deterministic in-memory matching engine and an event-driven backend architecture.
+PerpX is a perpetual-futures exchange prototype built around a **deterministic in-memory matching engine**, **Redis Streams**, **PostgreSQL**, **WebSockets**, and a **Next.js trading client**.
 
-It combines **TypeScript, Node.js, Redis Streams, PostgreSQL, WebSockets, and Next.js** to model the complete trading lifecycle:
+The core design principle is simple:
 
-> **Client → Command → Matching → Engine Event → HTTP Response + Persistence + Realtime Update**
+> **The matching engine owns authoritative trading state. Services around it communicate through commands and events.**
 
-The project focuses on the hard engineering problems behind exchange infrastructure: **authoritative state, deterministic matching, asynchronous processing, margin, liquidation, event propagation, idempotency, snapshots, and crash recovery.**
-
-> ⚠️ **Status:** Engineering / educational prototype. Not suitable for real-money trading, custody, or production financial use.
+**Status:** Development / educational prototype. Not intended for real-money trading or custody.
 
 ---
 
-## Contents
+## Navigation
 
-- [Architecture](#architecture)
-- [Order Lifecycle](#order-lifecycle)
-- [Engine Design](#engine-design)
-- [Order Book](#order-book)
-- [Margin and Positions](#margin-and-positions)
-- [Liquidation](#liquidation)
-- [Event-Driven Communication](#event-driven-communication)
-- [Persistence](#persistence)
-- [Realtime Updates](#realtime-updates)
-- [Snapshots and Recovery](#snapshots-and-recovery)
-- [Consistency and Idempotency](#consistency-and-idempotency)
-- [Testing](#testing)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Local Development](#local-development)
+[Architecture](#architecture) · [Order Lifecycle](#order-lifecycle) · [Matching Engine](#matching-engine) · [Event-Driven Communication](#event-driven-communication) · [Trading State](#trading-state) · [Liquidation](#liquidation) · [Persistence](#persistence) · [Snapshots & Recovery](#snapshots--recovery) · [Realtime Updates](#realtime-updates) · [Tech Stack](#tech-stack)
 
 ---
 
-# Architecture
+## Architecture
 
-The central design decision is simple:
+PerpX separates the trading engine from HTTP, persistence, and realtime delivery. The backend publishes commands to the engine, while engine events are consumed independently by response handling, persistence, and WebSocket services.
 
-> **The matching engine owns authoritative trading state. Services outside the engine communicate with it through commands and events.**
+![PerpX System Architecture](./docs/peps.png)
 
-```mermaid
-flowchart LR
-    C["Next.js Trading Client"]
-    API["Backend API\nNode.js + TypeScript"]
-    CMD[("Redis Stream\nCommand Stream")]
-    E["Matching Engine\nDeterministic In-Memory State"]
-    EVT[("Redis Stream\nResponse / Event Stream")]
-    R["Response Consumer\nCorrelation IDs"]
-    P["DB Poller\nProjection Consumer"]
-    W["WebSocket Server\nRealtime Consumer"]
-    DB[("PostgreSQL")]
-    MP["Mark Price Poller"]
-    EXT["External Market Data"]
-    SNAP[("Engine Snapshots")]
+### High-level flow
 
-    C -->|HTTP| API
-    API -->|Command + correlationId| CMD
-    CMD --> E
-    E -->|Engine event| EVT
-    EVT --> R
-    R -->|Resolve pending request| API
-    API -->|HTTP response| C
-    EVT --> P
-    P -->|Persist projections| DB
-    EVT --> W
-    W -->|Realtime updates| C
-    EXT --> MP
-    MP -->|Price command| CMD
-    E -->|Periodic snapshot| SNAP
+```text
+Client
+  │
+  │ HTTP / WebSocket
+  ▼
+Backend API
+  │
+  │ Command + correlationId
+  ▼
+Redis Command Stream
+  │
+  ▼
+Matching Engine
+  │
+  │ Engine Events
+  ▼
+Redis Response Stream
+  ├──────────────► Response Consumer ──► HTTP response
+  ├──────────────► DB Poller ──────────► PostgreSQL
+  └──────────────► WebSocket Consumer ─► Trading Client
 ```
 
-### Separation of responsibilities
-
-| Component | Responsibility |
-|---|---|
-| **Next.js client** | Trading UI, orderbook, orders, positions |
-| **Backend API** | Auth, validation, command creation, request correlation |
-| **Command stream** | Delivers commands to the engine |
-| **Matching engine** | Owns authoritative trading state and executes trades |
-| **Response/event stream** | Publishes engine results and state-change events |
-| **Response consumer** | Resolves asynchronous HTTP requests using correlation IDs |
-| **DB poller** | Projects engine events into PostgreSQL |
-| **WebSocket server** | Delivers realtime market updates |
-| **Mark-price poller** | Converts external prices into engine updates |
-| **Snapshot store** | Persists engine state for recovery |
+This keeps the engine independent from transport and persistence concerns while allowing multiple downstream consumers to react to the same engine event.
 
 ---
 
-# Order Lifecycle
-
-An order does not execute inside an HTTP handler. The API validates and publishes a command; the engine processes it independently.
+## Order Lifecycle
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant C as Client
-    participant A as Backend API
-    participant Q as Redis Streams
-    participant E as Engine
+    participant C as Next.js Client
+    participant B as Backend API
+    participant R as Redis Streams
+    participant E as Matching Engine
     participant P as DB Poller
-    participant W as WebSocket
+    participant W as WebSocket Server
     participant D as PostgreSQL
 
-    C->>A: POST /order
-    A->>A: Authenticate + validate
-    A->>A: Generate correlationId
-    A->>A: Register pending request
-    A->>Q: Publish command
-    Q->>E: Consume command
-    E->>E: Match + mutate authoritative state
-    E->>Q: Publish engine event
+    C->>B: Place order
+    B->>B: Authenticate + validate
+    B->>B: Generate correlationId
+    B->>R: Publish command
+    R->>E: Consume command
+    E->>E: Match + update authoritative state
+    E->>R: Publish engine event
 
-    par HTTP response
-        Q->>A: Consume event
-        A->>A: Resolve correlationId
-        A-->>C: Response
+    par HTTP Response
+        R->>B: Consume response
+        B->>B: Resolve correlationId
+        B-->>C: HTTP response
     and Persistence
-        Q->>P: Consume event
+        R->>P: Consume event
         P->>D: Persist projection
-    and Realtime delivery
-        Q->>W: Consume event
+    and Realtime
+        R->>W: Consume event
         W-->>C: WebSocket update
     end
 ```
 
-This lets Node.js continue processing other requests while the engine handles the command instead of blocking the event loop around engine execution.
+The backend does not need to synchronously execute matching inside the HTTP handler. It publishes the command and resolves the eventual response through the correlation ID.
 
 ---
 
-# Engine Design
+## Matching Engine
 
-The engine is the core of the exchange. Its state is kept in memory so matching can operate without a database round-trip for every order.
+The matching engine is the authoritative state machine for trading operations.
 
 ```mermaid
 flowchart TB
-    CMD["Engine Command"] --> V["Validation"]
-    V --> M["Market Manager"]
-    M --> B["Order Book"]
-    M --> U["User Manager"]
-    B --> F["Fills"]
-    U --> BAL["Balances / Locked Margin"]
-    F --> POS["Positions"]
-    BAL --> RISK["Margin / Risk"]
-    POS --> RISK
-    RISK --> LIQ["Liquidation State"]
-    F --> EVENT["Engine Event"]
+    CMD[Engine Command] --> VALIDATE[Command Validation]
+    VALIDATE --> MARKET[Market Manager]
+    MARKET --> BOOK[Order Book]
+    MARKET --> USERS[User / Balance State]
+    BOOK --> POS[Position State]
+    USERS --> MARGIN[Margin Management]
+    POS --> MARGIN
+    MARGIN --> RISK[Risk Checks]
+    RISK --> LIQ[Liquidation State]
+    BOOK --> EVENT[Engine Event]
     POS --> EVENT
-    RISK --> EVENT
+    MARGIN --> EVENT
     LIQ --> EVENT
 ```
 
-The engine is responsible for state transitions such as:
-
-- limit and market order execution
-- order cancellation
-- partial fills
-- price-time priority
-- balance and locked-margin updates
-- position creation and reduction
-- realized PnL
-- leverage and margin checks
-- funding state
-- liquidation state
-- event generation
-- snapshots and state restoration
+Core responsibilities include order execution, cancellation, partial fills, balances, locked collateral, positions, PnL, funding, margin checks, liquidation state, event generation, and engine snapshots.
 
 ---
 
-# Order Book
+## Order Book
 
 The order book is organized around **price levels with FIFO ordering inside each level**.
 
 ```text
                     ORDER BOOK
 
-       BIDS                         ASKS
+        BIDS                    ASKS
 
-   64,900 ─── 3.0              65,100 ─── 2.0
-   64,800 ─── 5.0              65,200 ─── 4.0
-   64,700 ─── 1.5              65,300 ─── 6.0
+     64,900 ─ 3.0            65,100 ─ 2.0
+     64,800 ─ 5.0            65,200 ─ 4.0
+     64,700 ─ 1.5            65,300 ─ 6.0
 
                     │
                     ▼
-              PRICE-TIME PRIORITY
+             PRICE-TIME PRIORITY
 ```
 
-At an individual price level:
-
-```text
-Price = 65,000
-
-┌──────────────┐
-│ Order A      │  ← oldest / first eligible
-├──────────────┤
-│ Order B      │
-├──────────────┤
-│ Order C      │
-└──────────────┘
-```
-
-This makes matching deterministic and provides a clear ordering model for replay and recovery.
+At the same price, the earliest eligible order is matched first. This makes matching deterministic and gives replay/recovery a well-defined ordering model.
 
 ---
 
-# Margin and Positions
+## Trading State
 
-PerpX extends a conventional spot order book with leveraged position state.
+Perpetual futures add position and collateral state on top of the order book.
 
 ```mermaid
 flowchart LR
-    U["User"] --> B["Available Balance"]
-    U --> O["Open Orders"]
-    U --> P["Position"]
-    O --> L["Locked Margin"]
-    P --> M["Margin / PnL"]
-    MP["Mark Price"] --> M
-    B --> M
-    M --> R{"Risk Check"}
-    R -->|Healthy| N["Continue"]
-    R -->|Unsafe| Q["Liquidation"]
+    USER[User] --> BAL[Available Balance]
+    USER --> LOCKED[Locked Margin]
+    USER --> ORDERS[Open Orders]
+    USER --> POSITION[Position]
+    POSITION --> MARGIN[Margin / PnL]
+    MARK[Mark Price] --> MARGIN
+    BAL --> MARGIN
+    MARGIN --> CHECK{Risk Check}
+    CHECK -->|Healthy| NORMAL[Continue Trading]
+    CHECK -->|Unsafe| LIQ[Liquidation]
 ```
 
-The important distinction is that **order margin and position margin affect the same authoritative engine state**; they cannot safely be treated as independent database records during matching.
+The engine keeps these related state transitions together so an order, fill, position update, and margin transition are not independently invented by downstream services.
 
 ---
 
-# Liquidation
-
-Liquidation is represented explicitly in engine state rather than being treated as a normal order-flow side effect.
+## Liquidation
 
 ```mermaid
 flowchart TB
-    PRICE["Mark Price Update"] --> RISK["Calculate Position Risk"]
-    POS["Open Position"] --> RISK
-    RISK --> CHECK{"Liquidation threshold?"}
-    CHECK -->|No| SAFE["Continue Trading"]
-    CHECK -->|Yes| STATE["Mark Position LIQUIDATING"]
-    STATE --> ORDER["Generate Liquidation Order"]
-    ORDER --> ENGINE["Matching Engine"]
+    PRICE[Mark Price Update] --> RISK[Position Risk Calculation]
+    POSITION[Open Position] --> RISK
+    RISK --> CHECK{Liquidation Threshold?}
+    CHECK -->|No| CONTINUE[Continue Trading]
+    CHECK -->|Yes| STATE[Set Position LIQUIDATING]
+    STATE --> ORDER[Create Liquidation Order]
+    ORDER --> ENGINE[Matching Engine]
 ```
 
-The explicit `LIQUIDATING` state prevents normal order operations from incorrectly modifying a position while liquidation is in progress.
+The explicit `LIQUIDATING` state prevents normal trading operations from incorrectly mutating a position while liquidation is active.
 
 ---
 
-# Event-Driven Communication
+## Event-Driven Communication
 
-Redis Streams are the boundary between the backend and the engine.
+Redis Streams form the communication boundary between services.
 
 ```mermaid
 flowchart LR
-    API["Backend"] --> C[("engine-stream")]
-    C --> E["Matching Engine"]
-    E --> R[("response-stream")]
-    R --> HTTP["Response Consumer"]
-    R --> DBP["DB Poller"]
-    R --> WSS["WebSocket Consumer"]
-    HTTP --> CLIENT["HTTP Client"]
-    DBP --> DB[("PostgreSQL")]
-    WSS --> WSCLIENT["WebSocket Clients"]
+    API[Backend API] --> CMD[(engine-stream)]
+    CMD --> ENGINE[Matching Engine]
+    ENGINE --> EVENTS[(response-stream)]
+    EVENTS --> RESPONSE[Response Consumer]
+    EVENTS --> DBP[DB Poller]
+    EVENTS --> WSS[WebSocket Consumer]
 ```
 
-One engine event can therefore feed multiple downstream consumers without making the engine directly depend on HTTP, PostgreSQL, or WebSocket infrastructure.
-
-### Why this matters
-
-The engine produces **facts about state transitions**. Downstream services decide what they need to do with those facts.
+One engine event can fan out to multiple consumers:
 
 ```text
                  response-stream
@@ -279,29 +202,29 @@ The engine produces **facts about state transitions**. Downstream services decid
        HTTP          Storage      Realtime
 ```
 
+This keeps matching independent from HTTP, PostgreSQL, and WebSocket delivery.
+
 ---
 
-# Persistence
+## Persistence
 
-PostgreSQL is used as the durable persistence/projection layer rather than being synchronously queried for every matching operation.
+PostgreSQL acts as the durable, queryable persistence/projection layer.
 
 ```mermaid
 flowchart LR
-    E["Matching Engine"] --> S[("response-stream")]
-    S --> P["DB Poller"]
-    P --> O[("Orders")]
-    P --> F[("Fills")]
-    P --> PS[("Positions")]
-    P --> H[("History")]
+    ENGINE[Matching Engine] --> EVENTS[(response-stream)]
+    EVENTS --> POLLER[DB Poller]
+    POLLER --> ORDERS[(Orders)]
+    POLLER --> FILLS[(Fills / Trades)]
+    POLLER --> POS[(Positions)]
+    POLLER --> HISTORY[(History)]
 ```
 
-This separation allows the engine to optimize for deterministic state transitions while PostgreSQL provides durable, queryable data for application features.
+The engine does not need a synchronous database round trip for every matching operation.
 
 ---
 
-# Realtime Updates
-
-The WebSocket layer consumes events independently from the engine.
+## Realtime Updates
 
 ```text
 Engine Event
@@ -317,42 +240,38 @@ WebSocket Server
 A    B    C
 ```
 
-Clients can bootstrap state through HTTP and then receive incremental updates through WebSockets.
-
-For orderbook updates, sequence identifiers provide a way to detect gaps and trigger resynchronization when a client misses events.
+Clients can bootstrap state through HTTP and then receive incremental orderbook, order, trade, and position updates through WebSockets.
 
 ---
 
-# Mark Price
+## Mark Price
 
-External market data is kept outside the matching loop.
+External market data is kept outside the critical matching path.
 
 ```mermaid
 flowchart LR
-    EXT["External Market Data"] --> P["Mark Price Poller"]
-    P --> S[("Redis Stream")]
-    S --> E["Matching Engine"]
-    E --> POS["Positions"]
-    POS --> R["Risk / Liquidation"]
+    EXTERNAL[External Market Data] --> POLLER[Mark Price Poller]
+    POLLER --> STREAM[(Redis Stream)]
+    STREAM --> ENGINE[Matching Engine]
+    ENGINE --> POSITIONS[Positions]
+    POSITIONS --> RISK[Risk / Liquidation]
 ```
-
-The engine receives price information as commands/events rather than maintaining an external network connection inside the critical matching path.
 
 ---
 
-# Snapshots and Recovery
+## Snapshots & Recovery
 
 The engine periodically persists snapshots of its authoritative in-memory state.
 
 ```mermaid
-flowchart TB
-    RUN["Engine Running"] --> SNAP["Create Snapshot"]
-    SNAP --> STORE[("Snapshot Store")]
-    RUN -->|Crash| REC["Recovery"]
-    STORE --> REC
-    REC --> RESTORE["Restore State"]
-    RESTORE --> REPLAY["Replay Stream Events"]
-    REPLAY --> LIVE["Resume Live Processing"]
+flowchart LR
+    RUN[Engine Running] --> SNAP[Periodic Snapshot]
+    SNAP --> STORE[(Snapshot Store)]
+    RUN -->|Crash| RECOVERY[Recovery]
+    STORE --> RECOVERY
+    RECOVERY --> RESTORE[Restore State]
+    RESTORE --> REPLAY[Replay Events After Snapshot]
+    REPLAY --> LIVE[Resume Live Processing]
 ```
 
 Conceptually:
@@ -373,145 +292,52 @@ Reconstruct current state
 Resume live processing
 ```
 
-Snapshots allow the engine to avoid rebuilding its entire state from the beginning of the event history after a crash.
+Snapshots reduce the amount of history that must be replayed after an engine restart.
 
 ---
 
-# Consistency and Idempotency
-
-Different parts of the system intentionally have different consistency characteristics.
+## Consistency & Idempotency
 
 | Component | Model |
 |---|---|
 | Matching engine | Deterministic state transitions |
 | Redis Streams | At-least-once message delivery |
 | HTTP response path | Correlation-ID based resolution |
-| PostgreSQL | Eventually consistent projection of engine events |
+| PostgreSQL | Event-driven projection |
 | WebSockets | Realtime event delivery |
 | Recovery | Snapshot + stream replay |
 
-This means downstream consumers must be designed with duplicate delivery and replay in mind. The engine's state transitions remain the source of truth; projections and realtime consumers should not independently invent trading state.
+Downstream consumers therefore need to tolerate duplicate delivery and replay. The matching engine remains the source of truth.
 
 ---
 
-# Testing
+## Testing
 
-The exchange contains automated tests around core engine behavior and trading state.
+The project contains automated tests around core engine behavior and trading state, including matching, partial fills, cancellation, balances, positions, margin, liquidation safeguards, and recovery behavior.
 
-Important test areas include:
-
-- order matching
-- partial fills
-- order cancellation
-- balance updates
-- position transitions
-- margin behavior
-- liquidation safeguards
-- snapshot/recovery behavior
-- event processing
-
-The goal is not simply endpoint coverage; the critical invariant is that **the same command sequence produces the same engine state**.
+The important invariant is that **the same command sequence should produce the same engine state**.
 
 ---
 
-# Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js, React, TypeScript |
+| Trading client | Next.js, React, TypeScript |
 | Backend | Node.js, TypeScript |
-| Engine | TypeScript, in-memory state |
+| Engine | TypeScript / Bun |
 | Messaging | Redis Streams |
 | Persistence | PostgreSQL |
 | Realtime | WebSockets |
-| Validation | Zod / schema validation |
+| Validation | Zod / JSON Schema |
 | Testing | Bun test |
-| Runtime / tooling | Bun, TypeScript |
+| Tooling | Bun, TypeScript |
 
 ---
 
-# Project Structure
+## Project Evolution
 
-```text
-PerpX
-├── apps/
-│   ├── backend/        # HTTP API and application services
-│   ├── engine/         # Authoritative matching engine
-│   └── frontend/       # Next.js trading client
-│
-├── packages/
-│   ├── engine-package/ # Engine domain logic
-│   ├── types/           # Shared contracts/types
-│   └── ...
-│
-└── README.md
-```
-
-The exact package layout may evolve as the system develops; the architectural boundary is the important part: **client/application services are separated from the exchange engine.**
-
----
-
-# Engineering Decisions
-
-### Why keep matching state in memory?
-
-Matching requires ordered, low-latency state transitions. Putting the critical matching path behind a database would introduce unnecessary network and serialization overhead.
-
-### Why Redis Streams?
-
-Streams provide a durable asynchronous boundary between producers and consumers while allowing the engine, persistence layer, and realtime layer to evolve independently.
-
-### Why separate persistence from matching?
-
-The database is excellent for durable queries and historical data, but it should not become the synchronization mechanism for every engine state transition.
-
-### Why snapshots?
-
-A large in-memory engine state should not require replaying the entire lifetime of the exchange after every restart. Snapshots reduce recovery work to a bounded replay window.
-
----
-
-# Local Development
-
-### Prerequisites
-
-- Node.js / Bun
-- Redis
-- PostgreSQL
-
-### Install
-
-```bash
-bun install
-```
-
-### Environment
-
-Configure the required database, Redis, authentication, and external market-data environment variables used by the applications.
-
-### Run
-
-Start the required services according to the scripts in the individual applications/packages.
-
-For development, the typical architecture is:
-
-```text
-Frontend
-   │
-Backend
-   │
-Redis
-   │
-Engine
-   │
-PostgreSQL
-```
-
----
-
-# Project Evolution
-
-PerpX is the mature stage of an exchange-engine learning path:
+PerpX is the later stage of an exchange-engine learning path:
 
 ```text
 Spot Exchange
@@ -523,14 +349,24 @@ Perpetual Exchange V1
 PerpX
 ```
 
-The earlier projects established orderbook/matching concepts and the backend-engine boundary. PerpX pushes the design further into **margin, liquidation, asynchronous event processing, snapshots, recovery, idempotency, and production-oriented failure handling**.
+The earlier projects established orderbook/matching concepts and the backend-engine boundary. PerpX pushes the design further into **margin, liquidation, asynchronous event processing, realtime updates, snapshots, recovery, and idempotency**.
 
 ---
 
-# Disclaimer
+## Local Development
 
-PerpX is an educational engineering project. It is **not** an exchange for real-money trading and provides no guarantee of financial correctness, security, custody, or production readiness.
+```bash
+git clone https://github.com/MANI-116/Perpetual-futures-CentralizeExchange.git
+cd Perpetual-futures-CentralizeExchange
+bun install
+```
+
+Configure the required PostgreSQL, Redis, authentication, and external market-data environment variables before starting the applications.
 
 ---
+
+## Disclaimer
+
+PerpX is an educational engineering project. It is **not** intended for real-money trading, custody, or production financial use.
 
 ### Built to understand what happens underneath a trading platform.
