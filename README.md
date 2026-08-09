@@ -8,7 +8,6 @@
 
 </div>
 
-> ⚠️ **Status:** Engineering / educational prototype. Not suitable for real-money trading, custody, or production financial use.
 
 <p align="center">
   <a href="#introduction">Introduction</a> · <a href="#architecture">Architecture</a> · <a href="#order-lifecycle">Order Lifecycle</a> · <a href="#engine-design">Engine Design</a> · <a href="#order-book">Order Book</a> · <a href="#margin--positions">Margin & Positions</a> · <a href="#liquidation">Liquidation</a> · <a href="#event-driven-communication">Event-Driven Communication</a> · <a href="#persistence">Persistence</a> · <a href="#realtime-updates">Realtime Updates</a> · <a href="#snapshots--recovery">Snapshots & Recovery</a> · <a href="#consistency--idempotency">Consistency</a> · <a href="#testing">Testing</a> · <a href="#tech-stack">Tech Stack</a> · <a href="#local-development">Local Development</a>
