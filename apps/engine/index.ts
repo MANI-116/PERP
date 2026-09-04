@@ -5,8 +5,8 @@ import { Engine } from '@repo/engine-package';
 import { prisma } from '@repo/db';
 
 const redisUrl = process.env.REDIS_URL ?? undefined;
-const receiver = createClient( { url: redisUrl});
-export const sender = createClient({ url: redisUrl});
+const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+export const sender = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
 
 let lastProcessedStreamId = '0';
 

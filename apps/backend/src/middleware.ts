@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
-
+import { config } from '../config';
 export interface CustomJwtResponse extends JwtPayload {
   userId: string;
 }
@@ -20,7 +20,8 @@ export function AuthMiddleWare(
     return;
   }
 
-  const passcode = process.env.JWT_PASS;
+  const passcode = config.JWT_PASS;
+  
   if (passcode === undefined) {
     console.log('env not loaded');
     res.status(500).json({ message: 'env not found error' });

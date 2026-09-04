@@ -16,7 +16,7 @@ const logos: Record<string, string> = {
   "BNB-PERP": "/coins/bnb.png",
 };
 
-export default function Home() {
+export default  function Home() {
   const router = useRouter();
   const [markets, setMarkets] = useState<MarketDisplay[]>([]);
 
@@ -46,6 +46,8 @@ export default function Home() {
     const interval = setInterval(fetchMarkets, 3000);
     return () => clearInterval(interval);
   }, []);
+
+
  
   return (
       <main>

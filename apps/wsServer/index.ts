@@ -10,7 +10,7 @@ if(!redisUrl){
     console.log("redis url is not defined,env is not loaded properly ");
     process.exit(1);
 };
-const receiver = createClient({ url: redisUrl} );
+const receiver = createClient({ url: redisUrl, socket: { tls: true, rejectUnauthorized: false } });
 receiver.on("error",(error)=>{
     console.log("error on connceting to the receiver-",error);
 })

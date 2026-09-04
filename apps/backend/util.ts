@@ -1,7 +1,11 @@
 import { createClient } from 'redis';
 import { type EngineRequest } from '@repo/types';
+import { config } from './config';
+import { v7 as uuidv7 } from "uuid";
+
+
 export function generateId() {
-  const id = `eventCid-${Date.now() + Math.floor(Math.random() * 1e6)}`;
+  const id = uuidv7();
   return id;
 }
 
@@ -161,13 +165,13 @@ type RedisClientType = ReturnType<typeof createClient>;
   }
 
   private static async create() {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = config.REDIS_URL;
 
     if(!redisUrl){
       throw new Error('REDIS_URL is not defined in the environment variables');
     }
-    const receiver = createClient({ url: redisUrl } );
-    const sender = createClient( { url: redisUrl } );
+    const receiver = config.ENVIRONMENT === "local" ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+    const sender = config.ENVIRONMENT === "local" ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
 
     receiver.on('error', (error) => {
       console.log('error on receiver connecting to redis-', error);

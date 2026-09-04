@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '@repo/db';
 import { signUpSchema, signInSchema } from '../schemas.js';
 import { responseManager } from '../../util.js';
+import { config } from '../../config.js';
 
 
 export async function signup(req: Request, res: Response) {
@@ -80,7 +81,7 @@ export async function signin(req: Request, res: Response) {
         .send({ message: 'please check your password and username' });
     }
 
-    const passCode = process.env.JWT_PASS;
+    const passCode = config.JWT_PASS;
     if (passCode === undefined) {
       console.log(' env are not loaded');
       return res.status(500).send({ message: 'internal server error' });
@@ -91,7 +92,7 @@ export async function signin(req: Request, res: Response) {
 
     return res
       .status(200)
-      .cookie('Authorization', token)
+      .cookie('Authorization', token, { sameSite: 'none', secure: true })
       .json({ message: 'successfull', username, userId: user.userId, token });
   } catch (error) {
     console.log('error on the signin-', error);

@@ -15,6 +15,8 @@ import {
 } from '../handlers/queries.js';
 
 export function registerRoutes(app: Express) {
+
+
   // Admin
   app.post('/admin/market', createMarket);
 

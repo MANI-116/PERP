@@ -23,17 +23,6 @@ primary_region = "iad"
 
   processes = ["app"]
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 8080
-  ports = []
-  processes = ["app"]
-
-  [services.concurrency]
-    type = "connections"
-    soft_limit = 50
-    hard_limit = 100
-
 [checks]
   [checks.health]
     type = "http"
@@ -45,6 +34,4 @@ primary_region = "iad"
   cpu_kind = "shared"
   cpus = 1
 
-  # Reduce RAM to the minimum your app comfortably needs.
-  # Increase this if your app runs out of memory.
-  memory = "256mb"
+  memory = "1024mb"

@@ -1,35 +1,79 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: perps-postgres
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+
     ports:
-      - "5432:5432"
+      - "3001:3001"
+
+    environment:
+      NODE_ENV: local
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
+      REDIS_URL: redis://redis:6379
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: >
+      sh -c "cd /app && bun --cwd packages/db prisma migrate deploy --schema=prisma/schema.prisma && cd /app/apps/backend && bun index.ts"
+
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17
+
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: perps
+
+    ports:
+      - "5432:5432"
+
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d perps"
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
+
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
-    container_name: perps-redis
+    image: redis:8
+
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --appendfsync everysec --save 60 1000
+
     volumes:
-      - redisdata:/data
+      - redis_data:/data
+
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+    restart: unless-stopped
 
 volumes:
-  pgdata:
-  redisdata:
+  postgres_data:
+  redis_data:
