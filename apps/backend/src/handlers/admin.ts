@@ -1,7 +1,8 @@
 import type { Response } from 'express';
-import { prisma } from '@repo/db';
 import { createMarketSchema } from '../schemas.js';
 import { responseManager } from '../../util.js';
+import { prisma } from '../../lib/db.js';
+
 
 
 export async function createMarket(

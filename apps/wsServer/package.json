@@ -9,10 +9,16 @@
   "peerDependencies": {
     "typescript": "^5"
   },
+  "scripts": {
+     "dev": "export NODE_ENV=local && bun index.ts",
+    "prod": "export NODE_ENV=production && bun index.ts",
+    "sit": "export NODE_ENV=development && bun index.ts"
+  },
   "dependencies": {
+    "@repo/db": "*",
+    "@repo/types": "*",
+    "dotenv": "^17.4.2",
     "redis": "^6.0.0",
-    "ws": "^8.21.0",
-    "@repo/types":"*",
-    "@repo/db":"*"
+    "ws": "^8.21.0"
   }
 }

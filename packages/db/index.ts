@@ -1,1 +1,1 @@
-export {prisma} from "./db"
+export {createPrismaClient} from "./db"

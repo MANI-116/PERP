@@ -2,18 +2,15 @@ import { createClient} from "redis"
 import { WebSocket, WebSocketServer } from "ws"
 import http from "http"
 import { type EngineResponse, type RedisResponse} from "@repo/types"
-import { prisma } from "@repo/db"
+import { prisma } from "./lib/db.js"
 import { handleSubscribe, handleUnsubscribe } from "./handlers/index.js"
+import { config } from "./config.js"
 
-const redisUrl = process.env.REDIS_URL ?? undefined;
-if(!redisUrl){
-    console.log("redis url is not defined,env is not loaded properly ");
-    process.exit(1);
-};
-const receiver = createClient({ url: redisUrl, socket: { tls: true, rejectUnauthorized: false } });
-receiver.on("error",(error)=>{
-    console.log("error on connceting to the receiver-",error);
-})
+const redisUrl = config.REDIS_URL;
+
+
+const receiver = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+
 
 await receiver.connect();
 
@@ -41,8 +38,8 @@ async function initializeServer(){
 
 await initializeServer();
 
-server.listen(8080,()=>{
-    console.log("ws server is listening from the port:",8080)
+server.listen(config.PORT,()=>{
+    console.log("ws server is listening from the port:",config.PORT)
 })
 
 

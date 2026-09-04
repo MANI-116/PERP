@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
-import { prisma } from '@repo/db';
 import type { AuthRequest } from '../middleware.js';
 import { responseManager } from '../../util.js';
 
+import { prisma } from '../../lib/db.js';
 
 
 export async function getEquity(req: AuthRequest, res: Response) {

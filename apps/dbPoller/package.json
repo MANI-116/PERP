@@ -6,13 +6,19 @@
   "devDependencies": {
     "@types/bun": "latest"
   },
+  "scripts": {
+    "dev": "export NODE_ENV=local && bun index.ts",
+    "prod": "export NODE_ENV=production && bun index.ts",
+    "sit": "export NODE_ENV=development && bun index.ts"
+  },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@repo/db": "*",
+    "@repo/types": "*",
     "@types/redis": "^4.0.11",
-    "redis": "^5.12.1",
-    "@repo/db":"*",
-    "@repo/types":"*"
+    "dotenv": "^17.4.2",
+    "redis": "^5.12.1"
   }
 }

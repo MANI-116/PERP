@@ -20,7 +20,50 @@ services:
         condition: service_healthy
 
     command: >
-      sh -c "cd /app && bun --cwd packages/db prisma migrate deploy --schema=prisma/schema.prisma && cd /app/apps/backend && bun index.ts"
+      sh -c "cd /app &&
+      bun --cwd packages/db prisma migrate deploy --schema=prisma/schema.prisma &&
+      cd /app/apps/backend &&
+      bun index.ts"
+
+    restart: unless-stopped
+
+  dbpoller:
+    build:
+      context: .
+      dockerfile: apps/dbPoller/Dockerfile
+
+    environment:
+      NODE_ENV: local
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
+      REDIS_URL: redis://redis:6379
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  wsserver:
+    build:
+      context: .
+      dockerfile: apps/wsServer/Dockerfile
+
+    ports:
+      - "3002:3002"
+
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
+      REDIS_URL: redis://redis:6379
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
     restart: unless-stopped
 
@@ -39,11 +82,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U postgres -d perps"
-        ]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d perps"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -61,12 +100,7 @@ services:
       - redis_data:/data
 
     healthcheck:
-      test:
-        [
-          "CMD",
-          "redis-cli",
-          "ping"
-        ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@repo/db';
+import { prisma } from '../../lib/db.js';
 import { signUpSchema, signInSchema } from '../schemas.js';
 import { responseManager } from '../../util.js';
 import { config } from '../../config.js';

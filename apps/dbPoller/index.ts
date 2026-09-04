@@ -1,5 +1,5 @@
 import { createClient } from "redis";
-import { prisma} from "@repo/db"
+import { prisma} from "./lib/db"
 import {  type EngineResponse } from "@repo/types"
 
 const redisUrl = process.env.REDIS_URL

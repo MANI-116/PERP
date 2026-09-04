@@ -6,12 +6,13 @@ import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createClient } from 'redis';
 import { type EngineResponse, type RedisResponse } from '@repo/types';
-import { prisma } from '@repo/db';
 import { registerRoutes } from './src/routes/index.js';
 import { handleSubscribe, handleUnsubscribe } from './ws/handlers.js';
+import { prisma } from './lib/db.js';
 
 console.log("importing is done:");
 const app = express();
+
 
 app.use(
   cors({
@@ -40,12 +41,10 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 const redisUrl = config.REDIS_URL;
-if (!redisUrl) {
-  console.log('redis url is not defined, env is not loaded properly');
-  process.exit(1);
-}
+
 
 const receiver = config.ENVIRONMENT === "local" ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+
 receiver.on('error', (error) => {
   console.log('error on connecting to the receiver-', error);
 });
