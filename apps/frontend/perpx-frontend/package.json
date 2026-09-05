@@ -9,12 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@repo/db": "*",
+    "framer-motion": "^13.2.0",
     "jsonwebtoken": "^9.0.3",
     "motion": "^12.40.0",
     "next": "16.2.7",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "@repo/db":"*"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
