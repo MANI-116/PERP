@@ -10,11 +10,15 @@ export function SignUp() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (loading) return;
+
     setErrors([]);
+    setLoading(true);
 
     try {
       const res = await fetch(`${API_BASE}/signup`, {
@@ -33,26 +37,35 @@ export function SignUp() {
             msgs.push(`${issue.path.join(".")}: ${issue.message}`);
           }
         } else if (data.message) {
-          msgs.push(JSON.stringify(data.message));
+          msgs.push(
+            typeof data.message === "string"
+              ? data.message
+              : "Unable to create account"
+          );
         } else {
-          msgs.push("Something went wrong");
+          msgs.push("Unable to create account");
         }
 
         setErrors(msgs);
         return;
       }
 
-      router.push("/login");
+      router.replace("/login");
     } catch {
-      setErrors(["Could not connect to server"]);
+      setErrors(["Unable to connect to the server. Please try again."]);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-80 shadow-xl">
-      <div className="flex flex-col items-center mb-4">
+    <div className="w-80 rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+      <div className="mb-5 flex flex-col items-center">
         <Image src="/site-icon.png" width={56} height={56} alt="logo" />
-        <h1 className="text-lg font-semibold mt-2">Sign Up</h1>
+        <h1 className="mt-2 text-lg font-semibold">Sign Up</h1>
+        <p className="mt-1 text-xs text-zinc-500">
+          Create your account to get started
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -60,51 +73,73 @@ export function SignUp() {
           type="text"
           placeholder="Name"
           value={name}
+          disabled={loading}
           onChange={(e) => setName(e.target.value)}
-          className="bg-black/40 border border-zinc-800 rounded-md p-2.5 text-sm focus:outline-none focus:border-zinc-600 transition-colors"
+          className="rounded-md border border-zinc-800 bg-black/40 p-2.5 text-sm transition-all placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           required
         />
+
         <input
           type="text"
           placeholder="Username"
           value={username}
+          disabled={loading}
           onChange={(e) => setUsername(e.target.value)}
-          className="bg-black/40 border border-zinc-800 rounded-md p-2.5 text-sm focus:outline-none focus:border-zinc-600 transition-colors"
+          className="rounded-md border border-zinc-800 bg-black/40 p-2.5 text-sm transition-all placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           required
           minLength={4}
         />
+
         <input
           type="password"
           placeholder="Password"
           value={password}
+          disabled={loading}
           onChange={(e) => setPassword(e.target.value)}
-          className="bg-black/40 border border-zinc-800 rounded-md p-2.5 text-sm focus:outline-none focus:border-zinc-600 transition-colors"
+          className="rounded-md border border-zinc-800 bg-black/40 p-2.5 text-sm transition-all placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           required
           minLength={6}
         />
 
         {errors.length > 0 && (
-          <ul className="text-red-400 text-sm space-y-0.5">
-            {
-             errors.map((msg, i) => (
-              <li key={i}>{msg}</li>
-            ))}
-          </ul>
+          <div className="animate-[fadeIn_0.2s_ease-out] rounded-md border border-red-900/50 bg-red-950/30 px-3 py-2.5">
+            <ul className="space-y-1 text-xs text-red-400">
+              {errors.map((error, index) => (
+                <li key={index} className="flex gap-2">
+                  <span>•</span>
+                  <span>{error}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
-        <button className="bg-zinc-200 hover:bg-white text-black font-medium py-2.5 rounded-md mt-1 transition-colors">
-          Create Account
+        <button
+          type="submit"
+          disabled={loading}
+          className="mt-1 flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-200 font-medium text-black transition-all hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-black" />
+              Creating account...
+            </>
+          ) : (
+            "Create Account"
+          )}
         </button>
       </form>
 
-      <p className="text-zinc-500 text-sm text-center mt-4">
+      <p className="mt-4 text-center text-sm text-zinc-500">
         Already have an account?{" "}
-        <span
-          className="text-zinc-300 cursor-pointer hover:text-white transition-colors"
+        <button
+          type="button"
+          disabled={loading}
           onClick={() => router.push("/login")}
+          className="text-zinc-300 transition-colors hover:text-white disabled:opacity-50"
         >
           Log in
-        </span>
+        </button>
       </p>
     </div>
   );

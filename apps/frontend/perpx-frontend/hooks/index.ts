@@ -1,4 +1,4 @@
-import { OrderBook, OrderbookStore, MarketManager, Socket } from "@/lib/socketManager";
+import { OrderBook, OrderbookStore, MarketManager } from "@/lib/socketManager";
 import { useState, useEffect } from "react";
 
 interface UseOrderbookReturn{

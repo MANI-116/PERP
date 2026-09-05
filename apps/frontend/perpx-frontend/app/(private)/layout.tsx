@@ -6,15 +6,7 @@ import { Header } from "@/components/Header";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "PerpX — Perpetual Futures Exchange",
