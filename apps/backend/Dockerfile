@@ -1,5 +1,5 @@
 FROM oven/bun:1.3.14
-
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 WORKDIR /app
 
 COPY . .

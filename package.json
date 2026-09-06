@@ -4,16 +4,34 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.4.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10"
   },
-  "scripts": {
-    "backend": "bun --hot apps/backend/index.ts",
-    "engine": "bun run apps/engine/index.ts",
-    "db-poller": "bun run apps/dbPoller/index.ts",
-    "wss": "bun run apps/wsServer/index.ts",
+   "scripts": {
+      "dev": "concurrently \"bun run dev:backend\" \"bun run dev:wss\" \"bun run dev:engine\" \"bun run dev:dbpoller\"",
+
+    "dev:backend": "bun --cwd apps/backend --env-file=../../.env.local index.ts",
+    "dev:wss": "bun --cwd apps/wsServer --env-file=../../.env.local index.ts",
+    "dev:engine": "bun --cwd apps/engine --env-file=../../.env.local index.ts",
+    "dev:dbpoller": "bun --cwd apps/dbPoller --env-file=../../.env.local index.ts",
+
+
+    "docker": "concurrently \"bun run docker:backend\" \"bun run docker:wss\" \"bun run docker:engine\" \"bun run docker:dbpoller\"",
+
+    "docker:backend": "bun --cwd apps/backend --env-file=../../.env.docker index.ts",
+    "docker:wss": "bun --cwd apps/wsServer --env-file=../../.env.docker index.ts",
+    "docker:engine": "bun --cwd apps/engine --env-file=../../.env.docker index.ts",
+    "docker:dbpoller": "bun --cwd apps/dbPoller --env-file=../../.env.docker index.ts",
+
+
+    "prod": "concurrently \"bun run prod:backend\" \"bun run prod:wss\" \"bun run prod:engine\" \"bun run prod:dbpoller\"",
+
+    "prod:backend": "bun --cwd apps/backend --env-file=../../.env.prod-test index.ts",
+    "prod:wss": "bun --cwd apps/wsServer --env-file=../../.env.prod-test index.ts",
+    "prod:engine": "bun --cwd apps/engine --env-file=../../.env.prod-test index.ts",
+    "prod:dbpoller": "bun --cwd apps/dbPoller --env-file=../../.env.prod-test index.ts",
     "recover": "bun run scripts/recover-engine.ts",
     "reset": "bun run scripts/reset-and-seed.ts",
     "test": "bun test apps/tests/",
@@ -29,20 +47,22 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
+    "@repo/db": "*",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/express": "^5.0.6",
     "@types/ws": "^8.18.1",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.22.0",
     "prettier": "^3.9.6",
     "redis": "^6.1.0",
+    "uuid": "^14.0.2",
     "ws": "^8.20.1",
     "zod": "^4.4.3"
   }

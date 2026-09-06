@@ -1,9 +1,12 @@
 import { createClient } from "redis";
 import { prisma} from "./lib/db"
 import {  type EngineResponse } from "@repo/types"
+import { config } from "./config";
 
-const redisUrl = process.env.REDIS_URL
-const receiver = createClient(redisUrl ? { url: redisUrl, socket: { tls: true, rejectUnauthorized: false } } : undefined);
+const redisUrl = config.REDIS_URL
+
+const receiver = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+
 
 interface RedisResponse{   
     name: string;
@@ -26,9 +29,21 @@ await receiver.connect();
 try {
     await receiver.xGroupCreate("response-stream","dbPoller","0",{MKSTREAM:true})
 } catch (error) {
-    if(error instanceof Error)
-    console.log("error on creating dbPOller group-",error.name,error.message);
-    else console.log("unknown error-",error);
+    if (
+      error instanceof Error &&
+      error.message.includes("BUSYGROUP")
+    ) {
+      console.log( `consumer group dbpoller already exists `);
+      
+    }else{
+
+      throw new Error(
+        `Failed to create consumer group dbpoller : ${String(
+          error,
+        )}`,
+      );
+    }
+
 }
 
 // Load last processed event ID from PostgreSQL on startup

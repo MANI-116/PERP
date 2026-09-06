@@ -1,0 +1,122 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - wsserver
+    restart: unless-stopped
+
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+
+    expose:
+      - "3001"
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      PORT: ${BACKEND_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_PASS: ${JWT_PASS}
+      BACKEND_PORT: ${BACKEND_PORT}
+
+    depends_on:
+      engine:
+        condition: service_started
+
+    command: >
+      sh -c "
+      cd /app &&
+      bun --cwd packages/db prisma migrate deploy --schema=prisma/schema.prisma &&
+      cd /app/apps/backend &&
+      bun index.ts
+      "
+
+    restart: unless-stopped
+
+
+  engine:
+    build:
+      context: .
+      dockerfile: apps/engine/Dockerfile
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_PASS: ${JWT_PASS}
+
+    restart: unless-stopped
+
+
+  dbpoller:
+    build:
+      context: .
+      dockerfile: apps/dbPoller/Dockerfile
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_PASS: ${JWT_PASS}
+
+    depends_on:
+      engine:
+        condition: service_started
+
+    restart: unless-stopped
+
+
+  wsserver:
+    build:
+      context: .
+      dockerfile: apps/wsServer/Dockerfile
+
+    expose:
+      - "3002"
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      PORT: ${WS_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_PASS: ${JWT_PASS}
+      WS_PORT: ${WS_PORT}
+
+    depends_on:
+      engine:
+        condition: service_started
+
+    restart: unless-stopped
+
+
+networks:
+  default:
+    enable_ipv6: false

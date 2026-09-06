@@ -6,15 +6,13 @@ COPY . .
 
 RUN bun install --frozen-lockfile
 
-# Prisma config requires DATABASE_URL during build
+# Prisma client is needed if engine imports @repo/db
 ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/perps"
 
 RUN bun --cwd packages/db prisma generate --schema=prisma/schema.prisma
 
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
-WORKDIR /app/apps/wsServer
-
-EXPOSE 3002
+WORKDIR /app/apps/engine
 
 CMD ["bun", "index.ts"]

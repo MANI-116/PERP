@@ -16,14 +16,14 @@ function getLiquidationEngine() {
   return LiquidationEngine.create();
 }
 
-function createUser(userId: string): CreateUserResponse {
+export function createUser(userId: string): CreateUserResponse {
   console.log('creating the user in the engine-', userId);
   const user = new User(userId);
   const response = userManager.addUser(user);
   return { ...response, userId };
 }
 
-function createMarket(marketId: string): CreateMarketResponse {
+export function createMarket(marketId: string): CreateMarketResponse {
   return marketManager.addMarket({
     marketId,
     markPrice: 0n,
@@ -104,7 +104,10 @@ function getClosedPositions(userId: string) {
   return response;
 }
 
-export function engineManager(request: any): EngineResponse | null {
+
+
+
+export function engineManager(request: any): EngineResponse | null{
   request.payload = JSON.parse(request.payload);
   console.log('message from the sreams-', request);
 
@@ -123,6 +126,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { userId } = request.payload;
       const payload = createUser(userId);
       return {
+        
         event: 'CREATE_USER',
         eventId: engine.getNextEventId().toString(),
         payload,
@@ -133,6 +137,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { marketId } = request.payload;
       const payload = createMarket(marketId);
       return {
+        
         event: 'CREATE_MARKET',
         eventId: engine.getNextEventId().toString(),
         payload,
@@ -142,6 +147,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { userId, credit } = request.payload;
       const payload = rampUser({ userId, credit: BigInt(credit) });
       return {
+        
         event: 'RAMP_USER',
         eventId: engine.getNextEventId().toString(),
         payload,
@@ -151,6 +157,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { orderId, marketId } = request.payload;
       const response = deleteOrder(orderId, marketId);
       return {
+        
         event: 'DELETE_ORDER',
         eventId: engine.getNextEventId().toString(),
         payload: response,
@@ -161,6 +168,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { userId } = request.payload;
       const response = getOpenPositions(userId);
       return {
+        
         event: 'GET_OPEN_POSITIONS',
         eventId: engine.getNextEventId().toString(),
         payload: response,
@@ -170,6 +178,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { userId } = request.payload;
       const response = getClosedPositions(userId);
       return {
+        
         event: 'GET_CLOSED_POSITIONS',
         eventId: engine.getNextEventId().toString(),
         payload: response,
@@ -178,6 +187,7 @@ export function engineManager(request: any): EngineResponse | null {
     case 'GET_EQUITY': {
       const response = getEquity(request.payload.userId);
       return {
+        
         event: 'GET_EQUITY',
         eventId: engine.getNextEventId().toString(),
         payload: response,
@@ -200,6 +210,7 @@ export function engineManager(request: any): EngineResponse | null {
       const { marketId } = request.payload;
       const response = getDepth(marketId);
       return {
+        
         event: 'GET_DEPTH',
         eventId: engine.getNextEventId().toString(),
         payload: response,
@@ -217,6 +228,7 @@ export function engineManager(request: any): EngineResponse | null {
         const restoredEngine = Engine.createFromSnapshot(snapshot);
         if (!restoredEngine) {
           return {
+            
             event: 'RESTORE_SNAPSHOT',
             eventId: '0',
             payload: { success: false, error: 'snapshot restoration failed' },
@@ -231,6 +243,7 @@ export function engineManager(request: any): EngineResponse | null {
 
         console.log('engine state restored from snapshot');
         return {
+          
           event: 'RESTORE_SNAPSHOT',
           eventId: '0',
           payload: { success: true },

@@ -1,7 +1,7 @@
 import { createPrismaClient } from "@repo/db";
 import { config } from "../config";
 
-const db = await createPrismaClient(config.DATABASE_URL);
+const db =  await createPrismaClient(config.DATABASE_URL);
 
 if(!db) throw new Error("unable to connect to the database");
 

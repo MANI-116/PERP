@@ -38,10 +38,12 @@ async function initializeServer(){
 
 await initializeServer();
 
-server.listen(config.PORT,()=>{
-    console.log("ws server is listening from the port:",config.PORT)
-})
-
+server.listen(config.PORT, "0.0.0.0", () => {
+    console.log(
+        "ws server is listening from the port:",
+        config.PORT
+    );
+});
 
 
 wss.on("connection",(ws,request)=>{
@@ -79,7 +81,22 @@ try {
     "$",
     {MKSTREAM:true});
 } catch (error) {
-    console.log("error on creating the websocketserver",error)
+
+   if (
+      error instanceof Error &&
+      error.message.includes("BUSYGROUP")
+    ) {
+      console.log( `consumer group wss already exists `);
+      
+    }else{
+
+      throw new Error(
+        `Failed to create consumer group wss : ${String(
+          error,
+        )}`,
+      );
+    }
+    
 }
 
 
@@ -98,6 +115,7 @@ while(true){
         console.log("stream message-",streamMsg)
         const {id} = streamMsg;
 
+        console.log("json -parsing the stream:",streamMsg);
         const parsed = JSON.parse(streamMsg.message.message!) as EngineResponse;
         const {event, payload, eventId} = parsed;
         console.log("event-",event);

@@ -1,141 +1,189 @@
-/**
- * Reset & Seed Script
- *
- * 1. Flushes Redis (streams, keys, consumer groups)
- * 2. Truncates all PostgreSQL tables
- * 3. Seeds markets into both PostgreSQL AND engine-stream (same UUID)
- * 4. Seeds users into both PostgreSQL AND engine-stream (same UUID)
- * 5. Ramps each user with collateral via engine-stream
- *
- * Usage:   bun run reset
- * Prereq:  Redis + PostgreSQL running (docker-compose up -d)
- */
-import { createClient } from 'redis';
-import { prisma } from '../packages/db/db.js';
+import { createClient } from "redis";
+import { prisma } from "./db";
+import { config } from "../config";
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
-const client = createClient({ url: REDIS_URL });
-await client.connect();
-
-console.log('=== PerpX Reset & Seed ===\n');
-
-// 1. Flush Redis
-console.log('Flushing Redis...');
-// Flush the currently selected DB
-await client.flushDb();
-
-await client.flushAll();
-console.log('  Redis flushed\n');
-
-// 2. Clear PostgreSQL
-console.log('Clearing PostgreSQL...');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "EngineState" CASCADE');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "Snapshot" CASCADE');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "Transaction" CASCADE');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "Order" CASCADE');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "Market" CASCADE');
-await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" CASCADE');
-console.log('  All tables truncated\n');
-
-// 3. Markets
-const markets = [
-  {
-    symbol: 'BTC-PERP',
-    name: 'BTC-PERP',
-    slug: 'btc-perp',
-    scale: '1000000',
-    markPrice: '65000000000',
-    mmr: '50',
-    takerRate: '10',
-    makerRate: '5',
-  },
-  {
-    symbol: 'ETH-PERP',
-    name: 'ETH-PERP',
-    slug: 'eth-perp',
-    scale: '1000000',
-    markPrice: '3500000000',
-    mmr: '50',
-    takerRate: '10',
-    makerRate: '5',
-  },
-];
-
-console.log('Seeding markets into PostgreSQL + engine-stream...');
-for (const m of markets) {
-  try {
-    const res = await fetch('http://localhost:3001/admin/market', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(m),
-  });
-  if (!res.ok) {
-    console.error(`  Failed to create market ${m.symbol}: ${await res.text()}`);
-    continue;
-  }
-  const { id: marketId } = (await res.json()) as { id: string };
-
-  console.log(`  ${m.symbol.padEnd(10)} — id:${marketId.slice(0, 8)}…`);  
-  } catch (error) {
-    console.log("error- occured-",error);
-    
-  }
-  
+if (config.ENVIRONMENT === "production") {
+  throw new Error("❌ RESET IS NOT ALLOWED IN PRODUCTION");
 }
 
-// 4. Users
-const users = [
-  {
-    username: 'alice',
-    name: 'Alice',
-    password: 'password123',
-  
-  },
-  {
-    username: 'bob',
-    name: 'Bob',
-    password: 'password123',
+async function hashPassword(password: string) {
+  return Bun.password.hash(password);
+}
 
-  },
-];
+const redisUrl = config.REDIS_URL;
 
-console.log('\nSeeding users into PostgreSQL + engine-stream...');
-for (const u of users) {
-  try {
-    
-    const res = await fetch('http://localhost:3001/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: u.name,
-        username: u.username,
-        password: u.password,
-      }),
-    });
-    if (!res.ok) {
-      console.error(
-        `  Failed to create user ${u.username}: ${await res.text()}`,
-      );
-      continue;
-    }
-    const { userId } = (await res.json()) as { userId: string };
-  
-    console.log(
-      `  CREATE_USER — ${u.username.padEnd(8)} (${userId.slice(0, 8)}…)`,
+const redis =
+  config.ENVIRONMENT === "local" ||
+  config.ENVIRONMENT === "development"
+    ? createClient({ url: redisUrl })
+    : createClient({
+        url: redisUrl,
+        socket: {
+          tls: true,
+          rejectUnauthorized: false,
+        },
+      });
+
+redis.on("error", (error) => {
+  console.error("[redis] error:", error);
+});
+
+await redis.connect();
+
+console.log("=== PerpX Development Reset & Seed ===\n");
+
+try {
+  // ------------------------------------------------------------
+  // 1. Reset Redis
+  // ------------------------------------------------------------
+
+  console.log("1. Flushing Redis...");
+
+  await redis.flushDb();
+
+  console.log("   Redis flushed\n");
+
+  // ------------------------------------------------------------
+  // 2. Reset PostgreSQL
+  //
+  // EngineState and Snapshot are engine-owned runtime/recovery
+  // state, so they are cleared but NOT seeded here.
+  // ------------------------------------------------------------
+
+  console.log("2. Clearing PostgreSQL...");
+
+  await prisma.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      "Transaction",
+      "Order",
+      "Market",
+      "User",
+      "Snapshot",
+      "EngineState"
+    RESTART IDENTITY CASCADE;
+  `);
+
+  const remainingUsers = await prisma.user.count();
+  const remainingMarkets = await prisma.market.count();
+  const remainingSnapshots = await prisma.snapshot.count();
+
+  if (
+    remainingUsers !== 0 ||
+    remainingMarkets !== 0 ||
+    remainingSnapshots !== 0
+  ) {
+    throw new Error(
+      `Database reset failed:
+users=${remainingUsers}
+markets=${remainingMarkets}
+snapshots=${remainingSnapshots}`,
     );
-  } catch (error) {
-    console.log("error- while creating the user",error);
-    
   }
+
+  console.log("   PostgreSQL cleared\n");
+
+  // ------------------------------------------------------------
+  // 3. Seed Markets
+  //
+  // These are durable reference data.
+  // Engine will load them during bootstrap.
+  // ------------------------------------------------------------
+
+  const markets = [
+    {
+      symbol: "BTCUSDT",
+      name: "BTC-PERP",
+      slug: "btc-perp",
+      scale: 1_000_000n,
+      markPrice: 65_000_000_000n,
+      mmr: 50n,
+      takerRate: 10n,
+      makerRate: 5n,
+    },
+    {
+      symbol: "ETHUSDT",
+      name: "ETH-PERP",
+      slug: "eth-perp",
+      scale: 1_000_000n,
+      markPrice: 3_500_000_000n,
+      mmr: 50n,
+      takerRate: 10n,
+      makerRate: 5n,
+    },
+  ];
+
+  console.log("3. Seeding markets...");
+
+  for (const market of markets) {
+    const created = await prisma.market.create({
+      data: market,
+    });
+
+    console.log(
+      `   ${created.symbol.padEnd(10)} — ${created.id}`,
+    );
+  }
+
+  console.log("");
+
+  // ------------------------------------------------------------
+  // 4. Seed Users
+  //
+  // Passwords are hashed exactly like normal signup.
+  // ------------------------------------------------------------
+
+  console.log("4. Seeding users...");
+
+  const users = [
+    {
+      username: "alice",
+      name: "Alice",
+      password: await hashPassword("password123"),
+    },
+    {
+      username: "bob",
+      name: "Bob",
+      password: await hashPassword("password123"),
+    },
+  ];
+
+  const result = await prisma.user.createMany({
+    data: users,
+  });
+
+  console.log(`   Created ${result.count} users\n`);
+
+  // ------------------------------------------------------------
+  // 5. DO NOT create EngineState
+  // 6. DO NOT create Snapshot
+  // 7. DO NOT publish engine events
+  //
+  // Engine owns its runtime state.
+  // On startup it will:
+  //
+  //   no Snapshot
+  //       ↓
+  //   load users + markets from DB
+  //       ↓
+  //   build runtime state
+  //       ↓
+  //   create initial Snapshot
+  // ------------------------------------------------------------
+
+  console.log("=== Reset Complete ===");
+  console.log(`Markets seeded: ${markets.length}`);
+  console.log(`Users seeded:   ${result.count}`);
+  console.log("");
+  console.log("Engine must now be started/restarted.");
+  console.log("It will detect that no snapshot exists.");
+  console.log("It will bootstrap from PostgreSQL.");
+  console.log("It will then create the initial snapshot.");
+
+} catch (error) {
+  console.error("\n❌ RESET FAILED");
+  console.error(error);
+  process.exitCode = 1;
+} finally {
+  await redis.quit();
 }
-
-console.log('\nSeeding users into PostgreSQL + engine-stream is done');
-
-
-console.log('\n=== Done ===');
-console.log(`  Markets: ${markets.length}`);
-console.log(`  Users:   ${users.length}`);
-console.log('\nEvents buffered in engine-stream. Restart engine to process.');
-
-await client.quit();
 

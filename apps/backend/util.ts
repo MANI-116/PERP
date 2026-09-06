@@ -74,39 +74,43 @@ type RedisClientType = ReturnType<typeof createClient>;
         const messages = stream.messages;
 
         for (const msg of messages) {
-          const raw = msg.message;
-          let parsed: StreamMessage = {};
-          try {
-            parsed = JSON.parse(raw.message || '{}');
-          } catch {}
+   
+          const engineResponse = msg.message;
+          let payload: StreamMessage = {};
+        
+           payload = JSON.parse(engineResponse.payload || '{}');
+        
 
-          if (parsed.event !== 'SNAPSHOT' && parsed.eventId) {
-            const evId = BigInt(parsed.eventId);
+          if (engineResponse.event !== 'SNAPSHOT' && engineResponse.eventId) {
+            const evId = BigInt(engineResponse.eventId);
             if (evId <= this.lastProcessedEventId) {
-              console.log('backend: skipping duplicate event', parsed.event, evId.toString());
+              console.log('backend: skipping duplicate event', payload.event, evId.toString());
               await this.receiver.xAck('response-stream', 'response-group', msg.id);
               continue;
             }
             this.lastProcessedEventId = evId;
           }
 
-          if (raw.corelationId){
-            console.log("calling the resolver-",raw.corelationId, "message-",raw.message);
+          if (engineResponse.corelationId){
+            console.log("calling the resolver-",engineResponse.corelationId, "message-",payload);
 
-            const resolver = this.requestMap.get(raw.corelationId);
+            const resolver = this.requestMap.get(engineResponse.corelationId);
+
             if (resolver === undefined) {
-              console.log('resolver not found for correlationId-', raw.corelationId);
-              continue};
-            console.log('resolver found-',raw.message);
-            resolver(JSON.parse(raw.message as string));
-            this.requestMap.delete(raw.corelationId);
+
+              console.log('resolver not found for correlationId-', engineResponse.corelationId);
+              continue;
+            };
+
+          
+            resolver(payload);
+
+            this.requestMap.delete(engineResponse.corelationId);
           }
           await this.receiver.xAck('response-stream', 'response-group', msg.id);
         }
       } catch (error) {
-        console.log('backend: response puller error-', error);
-        // Wait before retry to avoid busy-loop on persistent errors
-        await new Promise(r => setTimeout(r, 1000));
+        console.log("error:",error);
       }
     }
   }
@@ -115,19 +119,15 @@ type RedisClientType = ReturnType<typeof createClient>;
        const corelationId = generateId();
        const resolverPromise= new Promise<any>((res, rej) => {
 
-        console.log("setting the resolver for the corelationId-",corelationId);
         this.requestMap.set(corelationId, res);
-        console.log('requespmap wether have res or not-',this.requestMap.has(corelationId));
-        // Timeout: clean up stale correlation IDs after 30s
+       
         setTimeout(() => {
           if (this.requestMap.has(corelationId)) {
-            console.log('backend: timing out correlationId', corelationId);
             this.requestMap.delete(corelationId);
-            rej(new Error('engine response timeout'));
+            rej(`request timedout for corelationId: ${corelationId}`);
           }
-        }, 10000);
+        }, 10_000);
       });
-      console.log('messsage is added to the queue');
       if (request.type === 'CREATE_ORDER') {
         const { leverage, price, qty } = request.payload;
         let payload = {
@@ -136,11 +136,13 @@ type RedisClientType = ReturnType<typeof createClient>;
           leverage: leverage.toString(),
           price: price.toString(),
         };
-        await this.sender.xAdd('engine-stream', '*', {
+        
+        const streamId = await this.sender.xAdd('engine-stream', '*', {
           corelationId,
           type: request.type,
           payload: JSON.stringify(payload),
         });
+        console.log('messsage is added to the queue:',streamId,corelationId);
       } else if (request.type === 'RAMP_USER') {
         const { userId, credit } = request.payload;
         const payload = { userId, credit: credit.toString() };
@@ -150,12 +152,16 @@ type RedisClientType = ReturnType<typeof createClient>;
           payload: JSON.stringify(payload),
         });
       } else {
+
+        console.log("sending message for:",request.type);
        
-        await this.sender.xAdd('engine-stream', '*', {
+        const streamId = await this.sender.xAdd('engine-stream', '*', {
           corelationId,
           type: request.type,
           payload: JSON.stringify(request.payload),
         });
+
+        console.log("messag sent to the queue:",streamId);
       }
       return resolverPromise;
     } catch (error) {
@@ -167,12 +173,17 @@ type RedisClientType = ReturnType<typeof createClient>;
   private static async create() {
     const redisUrl = config.REDIS_URL;
 
+    console.log("redisurl:backend::::::::::::::",redisUrl);
+
     if(!redisUrl){
       throw new Error('REDIS_URL is not defined in the environment variables');
     }
-    const receiver = config.ENVIRONMENT === "local" ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
-    const sender = config.ENVIRONMENT === "local" ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
-
+    const receiver = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+    
+    const sender = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
+    
+    
+  
     receiver.on('error', (error) => {
       console.log('error on receiver connecting to redis-', error);
     });

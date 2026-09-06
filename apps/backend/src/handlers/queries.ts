@@ -173,6 +173,9 @@ export async function getDepth(req: AuthRequest, res: Response) {
     if (typeof marketId !== 'string') {
       return res.status(400).send({ error: 'plz send correct marketId' });
     }
+
+    console.log('marketid for depth:',marketId);
+
     const response = await responseManager.putRequest({
       type: 'GET_DEPTH',
       payload: { marketId },
@@ -180,6 +183,6 @@ export async function getDepth(req: AuthRequest, res: Response) {
     console.log('response from the getDepth', response);
     return res.status(200).json({ ...response });
   } catch (error) {
-    return res.status(500).json({ error: 'internal server error' });
+    return res.status(500).json({ error:error,message:"internal server error" });
   }
 }

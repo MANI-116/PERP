@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "export NODE_ENV=local && bun index.ts",
     "prod": "export NODE_ENV=production && bun index.ts",
-    "sit": "export NODE_ENV=development && bun index.ts"
+    "sit": "export NODE_ENV=development && bun index.ts",
+    "reset": "export NODE_ENV=development && bun ../../scripts/reset-and-seed.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

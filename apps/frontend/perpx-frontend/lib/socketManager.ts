@@ -401,27 +401,27 @@ export class OrderbookStore{
               const data = await res.json();
               console.log("data from the get depth-",data);
               //data type {success:boolean,asks:[[level(string),totalQty(string)]],uidAtSnapshot:number}
-              if(!data.payload.data.asks && !data.payload.data.bids){
+              if(!data.data.asks && !data.data.bids){
                 console.log("data format is not matched:")
                 return;
               }
-              if( data.payload.data.asks instanceof  Array){
+              if( data.data.asks instanceof  Array){
     
-                for(let i = 0 ; i < data.payload.data.asks.length ; i++){
-                  const level = data.payload.data.asks[i];
+                for(let i = 0 ; i < data.data.asks.length ; i++){
+                  const level = data.data.asks[i];
                   this.snapshot.addAskLevel(Number(level[0]),Number(level[1]));
                 }
     
               }
     
-              if(data.payload.data.bids instanceof Array){
-                  for(let i = 0 ; i < data.payload.data.bids.length ; i++){
-                  const level = data.payload.data.bids[i];
+              if(data.data.bids instanceof Array){
+                  for(let i = 0 ; i < data.data.bids.length ; i++){
+                  const level = data.data.bids[i];
                   this.snapshot.addBidLevel(Number(level[0]),Number(level[1]));                   
                 }
               }
               
-              this.snapshot.snapshotUid = data.payload.data.uidAtSnapshot;
+              this.snapshot.snapshotUid = data.data.uidAtSnapshot;
     
             } catch (error) {
               console.log("error happend while fetching the depth-",error);

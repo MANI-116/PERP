@@ -3,109 +3,109 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-
     ports:
       - "3001:3001"
-
     environment:
-      NODE_ENV: local
+      NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
       REDIS_URL: redis://redis:6379
-
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-
+      engine:
+        condition: service_started
     command: >
       sh -c "cd /app &&
       bun --cwd packages/db prisma migrate deploy --schema=prisma/schema.prisma &&
       cd /app/apps/backend &&
       bun index.ts"
-
     restart: unless-stopped
 
   dbpoller:
     build:
       context: .
       dockerfile: apps/dbPoller/Dockerfile
-
     environment:
-      NODE_ENV: local
+      NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
       REDIS_URL: redis://redis:6379
-
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      engine:
+        condition: service_started
+    restart: unless-stopped
 
+  engine:
+    build:
+      context: .
+      dockerfile: apps/engine/Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   wsserver:
     build:
       context: .
       dockerfile: apps/wsServer/Dockerfile
-
     ports:
       - "3002:3002"
-
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3002
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/perps
       REDIS_URL: redis://redis:6379
-
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-
+      engine:
+        condition: service_started
     restart: unless-stopped
 
   postgres:
     image: postgres:17
-
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: perps
-
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d perps"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 5s
-
     restart: unless-stopped
 
   redis:
     image: redis:8
-
     ports:
       - "6379:6379"
-
     volumes:
       - redis_data:/data
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
-
     restart: unless-stopped
 
 volumes:
