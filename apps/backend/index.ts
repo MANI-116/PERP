@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import express from 'express';
+import express, { type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -28,7 +28,7 @@ app.use(cookieParser());
 const port = Number(config.PORT );
 
   //Health
-  app.get("/health",(req,res)=>{
+  app.get("/health",(req:Request,res:Response)=>{
     res.status(200).json({status:"ok"});
   })
 
