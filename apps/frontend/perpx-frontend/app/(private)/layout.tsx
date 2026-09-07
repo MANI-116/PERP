@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { Provider, type UserInfo } from "@/providers/userState";
 import "../globals.css";
 import { Header } from "@/components/Header";
@@ -34,9 +33,11 @@ export default async function RootLayout({
 
   try {
     const cookieStore = await cookies();
-    console.log("waiting");
     
     const passcode = process.env.JWT_PASS;
+    
+    console.log("jwt passcode:",passcode);
+    
     if (passcode) {
       const token = cookieStore.get("Authorization")?.value;
       if (token) {
@@ -44,7 +45,10 @@ export default async function RootLayout({
         initialUser = { name: decoded.username, isLoggedIn: true, userId: decoded.userId };
       }
     }
-  } catch {}
+  } catch(e) {
+    console.log("error:",e);
+
+  }
 
   return (
   

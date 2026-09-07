@@ -116,7 +116,7 @@ while(true){
         const {id} = streamMsg;
 
         console.log("json -parsing the stream:",streamMsg);
-        const parsed = JSON.parse(streamMsg.message.message!) as EngineResponse;
+        const parsed = JSON.parse(streamMsg.message.payload!) as EngineResponse;
         const {event, payload, eventId} = parsed;
         console.log("event-",event);
 

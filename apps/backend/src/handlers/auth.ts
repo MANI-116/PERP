@@ -89,11 +89,21 @@ export async function signin(req: Request, res: Response) {
     const token = jwt.sign({ userId: user.userId, username }, passCode, {
       expiresIn: '1d',
     });
-
     return res
-      .status(200)
-      .cookie('Authorization', token, { sameSite: 'none', secure: true })
-      .json({ message: 'successfull', username, userId: user.userId, token });
+  .status(200)
+  .cookie("Authorization", token, {
+    domain: ".manivathala.com",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  })
+  .json({
+    message: "successfull",
+    username,
+    userId: user.userId,
+    token,
+  });
+    
   } catch (error) {
     console.log('error on the signin-', error);
     return res.status(404).send({ error: 'error occured', message: error });
