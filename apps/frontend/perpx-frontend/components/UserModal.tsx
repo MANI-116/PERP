@@ -3,6 +3,7 @@ import { useContext, useState, useEffect, useRef } from "react"
 import { UserContext } from "@/providers/userState"
 import { API_BASE } from "@/lib/config"
 import { useRouter } from "next/navigation"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 interface UserModalProps {
   isOpen: boolean
@@ -17,13 +18,14 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
   const [balance, setBalance] = useState({equity:0,locked:0,available:0})
   const [ramping, setRamping] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const isDesktop = useMediaQuery("(min-width: 768px)")
 
   async function fetchBalance() {
     try {
       const res = await fetch(`${API_BASE}/equity/available`, { credentials: "include" })
       const data = await res.json()
-      if (data.payload.success && data.payload.data?.equity) {
-        setBalance(data.payload.data)
+      if (data.success && data.data?.equity) {
+        setBalance(data.data)
       }
     } catch (err) {
       console.log("fetch balance error", err)
@@ -48,8 +50,9 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
         body: JSON.stringify({ credit: amount }),
       })
       const data = await res.json()
-      if (data.payload.totalAvailable) {
-        setBalance({equity:Number(data.payload.totalAvailable),locked:balance.locked,available:balance.available})
+      const available = data?.totalAvailable
+      if (available !== undefined) {
+        setBalance((prev) => ({ ...prev, equity: Number(available), available: Number(available) }))
       }
       setAmount("")
     } catch (err) {
@@ -83,11 +86,17 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
       <div
         ref={dropdownRef}
-        style={{ position: 'fixed', top, right }}
-        className="w-72 bg-zinc-900 border border-zinc-800 rounded-[18px] rounded-tr-[4px] shadow-2xl z-50 overflow-hidden"
+        style={isDesktop ? { position: 'fixed', top, right } : undefined}
+        className={
+          isDesktop
+            ? "w-72 bg-zinc-900 border border-zinc-800 rounded-[18px] rounded-tr-[4px] shadow-2xl z-50 overflow-hidden"
+            : "fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-50 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl"
+        }
       >
-        {/* Tail */}
+        {/* Tail (desktop anchored dropdown only) */}
+      {isDesktop && (
       <div className="absolute -top-[6px] right-4 w-3 h-3 bg-zinc-900 border-l border-t border-zinc-800 rotate-45"></div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
@@ -97,7 +106,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
           </div>
           <div>
             <p className="text-sm font-medium text-zinc-100">{user.name}</p>
-            <p className="text-[10px] text-zinc-500">Account</p>
+            <p className="text-[13px] text-zinc-500">Account</p>
           </div>
         </div>
         <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -109,18 +118,18 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
 
       {/* Balance */}
       <div className="px-4 py-3">
-        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Equity</p>
+        <p className="text-[13px] text-zinc-500 uppercase tracking-wider mb-0.5">Equity</p>
         <p className="text-xl font-bold text-zinc-50">${Number(balance.equity)/100_000_000}</p>
 
-         <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Available Balance</p>
+         <p className="text-[13px] text-zinc-500 uppercase tracking-wider mb-0.5">Available Balance</p>
          <p className="text-xl font-bold text-zinc-50">${Number(balance.available)/100_000_000}</p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Locked Balance</p>
+          <p className="text-[13px] text-zinc-500 uppercase tracking-wider mb-0.5">Locked Balance</p>
           <p className="text-xl font-bold text-zinc-50">${Number(balance.locked)/100_000_000}</p>
       </div>
 
       {/* Deposit */}
       <div className="px-4 pb-3">
-        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Deposit Funds</p>
+        <p className="text-[13px] text-zinc-500 uppercase tracking-wider mb-1.5">Deposit Funds</p>
         <div className="flex gap-1.5">
           <input
             type="number"
@@ -143,7 +152,7 @@ export function UserModal({ isOpen, onClose, anchorRect }: UserModalProps) {
       <div className="border-t border-zinc-800">
         <button
           onClick={handleLogout}
-          className="w-full text-left px-4 py-2.5 text-sm text-zinc-400 hover:text-red-400 hover:bg-zinc-800/30 transition-colors"
+          className="w-full text-left px-4 py-2.5 text-sm text-zinc-400 hover:text-[#f23645] hover:bg-zinc-800/30 transition-colors"
         >
           Log out
         </button>

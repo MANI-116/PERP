@@ -103,7 +103,10 @@ type RedisClientType = ReturnType<typeof createClient>;
             };
 
           
-            resolver(payload);
+            // Resolve with the engine event plus the payload so
+            // callers can distinguish ORDER_ACCEPTED / FILLED / REJECTED.
+            // `event` is applied last so it can never be shadowed.
+            resolver({ ...payload, event: engineResponse.event });
 
             this.requestMap.delete(engineResponse.corelationId);
           }

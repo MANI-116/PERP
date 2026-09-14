@@ -1,18 +1,114 @@
 @import "tailwindcss";
 
+/* --------------------------------------------------------------------------
+ * Design tokens
+ * Single source of truth for surfaces, borders, text and market colors.
+ * -------------------------------------------------------------------------- */
+@theme {
+  --color-bg: #09090b;
+  --color-surface: #18181b;
+  --color-surface-2: #101216;
+  --color-line: #1d2025;
+  --color-line-strong: #252930;
+
+  --color-fg: #e6e8eb;
+  --color-muted: #8b929b;
+  --color-muted-2: #a0a6ad;
+
+  --color-up: #0ecb81;
+  --color-up-hover: #18d98d;
+  --color-down: #f23645;
+  --color-down-hover: #ff4352;
+}
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: #27272a transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+html {
+  height: 100%;
 }
 
 body {
-  background: #09090b;
-  color: #e4e4e7;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .page-wrapper {
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
+  padding-inline: clamp(12px, 3vw, 24px);
+}
+
+/* Visible keyboard focus everywhere (accessibility). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-up);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect the user's motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Height of the fixed mobile bottom nav, including the iOS safe area. */
+.mobile-nav-h {
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Keep page content clear of the fixed mobile bottom nav. */
+.mobile-content-pad {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .mobile-content-pad {
+    padding-bottom: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Shared component classes (reduce ad-hoc utility soup)
+ * -------------------------------------------------------------------------- */
+.panel {
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+
+.field {
+  display: flex;
+  height: 2.75rem;
+  align-items: center;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface-2);
+  transition: border-color 0.15s ease;
+}
+
+.field:focus-within {
+  border-color: #41464e;
+}
+
+.btn {
+  display: inline-flex;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }

@@ -7,6 +7,10 @@ export interface GetDepthRequest{
     marketId:string
 }
 
+export interface GetOiRequest{
+    marketId:string
+}
+
 export interface CreateMarketRequest{
     marketId:string;
 }

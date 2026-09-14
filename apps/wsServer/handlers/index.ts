@@ -2,10 +2,10 @@ import { WebSocket } from "ws";
 export function handleUnsubscribe(marketId:string,ws:WebSocket,subscribers:Map<string,Set<WebSocket>>){
      const set = subscribers.get(marketId);
      if(!set){
-        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"subscribed successfully but no market found "}}))    
+        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"no market found "}}))    
      }else{
         set.delete(ws);
-        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"subscribed successfully "}}))
+        return ws.send(JSON.stringify({type:"unSubscribeStatus",data:{success:true,message:"unSubscribed successfully "}}))
      }
 }
 

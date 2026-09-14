@@ -23,7 +23,7 @@ export function StartingBackendPage() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#080808] text-white">
+    <main className="flex min-h-screen items-center justify-center  bg-[#080b10] text-white">
       <div className="w-full max-w-lg px-6 text-center">
 
         {/* Animated PerpX Logo */}
@@ -70,7 +70,7 @@ export function StartingBackendPage() {
         </div>
 
         {/* System status */}
-        <div className="mb-4 flex items-center justify-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-zinc-500">
+        <div className="mb-4 flex items-center justify-center gap-2 text-[13px] font-semibold tracking-[0.18em] text-zinc-500">
           <motion.span
             className="h-1.5 w-1.5 rounded-full bg-white"
             animate={{

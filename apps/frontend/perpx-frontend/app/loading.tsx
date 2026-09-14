@@ -15,7 +15,7 @@ export default function Loading() {
 
         {/* Ambient glow */}
         <motion.div
-          className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-3xl"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0ecb81]/10 blur-3xl"
           animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.6, 0.35] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -30,12 +30,12 @@ export default function Loading() {
             transition={{ duration: 0.5 }}
           >
             <motion.div
-              className="absolute inset-0 rounded-2xl border border-cyan-400/30"
+              className="absolute inset-0 rounded-2xl border border-[#0ecb81]/30"
               animate={{ rotate: 360 }}
               transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
             />
 
-            <span className="text-xl font-bold tracking-widest text-cyan-400">
+            <span className="text-xl font-bold tracking-widest text-[#0ecb81]">
               PX
             </span>
           </motion.div>
@@ -72,7 +72,7 @@ export default function Loading() {
                 <span className="text-sm text-zinc-400">{service}</span>
 
                 <motion.span
-                  className="h-2 w-2 rounded-full bg-cyan-400"
+                  className="h-2 w-2 rounded-full bg-[#0ecb81]"
                   animate={{
                     opacity: [0.25, 1, 0.25],
                     scale: [0.8, 1.15, 0.8],
@@ -95,7 +95,7 @@ export default function Loading() {
             transition={{ delay: 0.8 }}
           >
             <motion.div
-              className="h-full w-1/3 rounded-full bg-cyan-400"
+              className="h-full w-1/3 rounded-full bg-[#0ecb81]"
               animate={{ x: ["-100%", "350%"] }}
               transition={{
                 duration: 1.8,
@@ -110,7 +110,7 @@ export default function Loading() {
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#0ecb81]" />
             Establishing secure connections
           </motion.div>
         </div>

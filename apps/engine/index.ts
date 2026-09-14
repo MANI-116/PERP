@@ -13,6 +13,11 @@ const RESPONSE_GROUP = "response-group";
 const SNAPSHOT_INTERVAL = 10 * 60 * 1000;
 
 let snapshotTimer: NodeJS.Timeout;
+let shuttingDown = false;
+
+// Authoritative engine checkpoint.
+// This always represents the latest stream event incorporated into engine state.
+let lastProcessedStreamId = "0-0";
 
 export const sender = createClient({
   url: process.env.REDIS_URL,
@@ -22,15 +27,6 @@ const receiver = createClient({
   url: process.env.REDIS_URL,
 });
 
-let shuttingDown = false;
-
-
-let lastProcessedStreamId = "0-0";
-
-/* ============================================================
- * REDIS ERRORS
- * ============================================================ */
-
 sender.on("error", (err) => {
   console.error("[engine sender redis error]", err);
 });
@@ -39,19 +35,11 @@ receiver.on("error", (err) => {
   console.error("[engine receiver redis error]", err);
 });
 
-
-/* ============================================================
- * REEDIS CONNECTING
- * ============================================================ */
-
 await sender.connect();
 await receiver.connect();
 
-
-
-
 /* ============================================================
- * ENSURE CONSUMER GROUP
+ * CONSUMER GROUP
  * ============================================================ */
 
 async function ensureConsumerGroup(
@@ -60,14 +48,9 @@ async function ensureConsumerGroup(
   startId: string,
 ) {
   try {
-    await receiver.xGroupCreate(
-      stream,
-      group,
-      startId,
-      {
-        MKSTREAM: true,
-      },
-    );
+    await receiver.xGroupCreate(stream, group, startId, {
+      MKSTREAM: true,
+    });
 
     console.log(
       `[engine] consumer group created | stream=${stream} group=${group}`,
@@ -88,6 +71,45 @@ async function ensureConsumerGroup(
   }
 }
 
+async function initializeFromDatabase() {
+  console.log("[engine] no snapshot - initializing from database...");
+
+  Engine.create();
+
+  const users = await prisma.user.findMany();
+  const markets = await prisma.market.findMany();
+
+  for (const user of users) {
+    engineManager({
+      type: "CREATE_USER",
+      payload: JSON.stringify({
+        userId: user.userId,
+      }),
+    });
+  }
+
+  for (const market of markets) {
+    engineManager({
+      type: "CREATE_MARKET",
+      payload: JSON.stringify({
+        marketId: market.id,
+        symbol: market.symbol,
+        markPrice: market.markPrice.toString(),
+        mmr: market.mmr.toString(),
+        takerRate: market.takerRate.toString(),
+        makerRate: market.makerRate.toString(),
+        taxationScale: market.scale.toString(),
+      }),
+    });
+  }
+
+  lastProcessedStreamId = "0-0";
+
+  console.log(
+    `[engine] database initialization complete | users=${users.length} markets=${markets.length}`,
+  );
+}
+
 /* ============================================================
  * RESTORE SNAPSHOT
  * ============================================================ */
@@ -104,9 +126,8 @@ async function restoreSnapshot() {
   if (!snapshot) {
     console.log("[engine] no snapshot found");
 
-    Engine.create();
-
-    lastProcessedStreamId = "0-0";
+    
+    await initializeFromDatabase();
 
     return;
   }
@@ -125,10 +146,17 @@ async function restoreSnapshot() {
     );
   }
 
+  /*
+   * IMPORTANT:
+   *
+   * Snapshot streamId is the authoritative checkpoint.
+   *
+   * Everything AFTER this ID must be replayed.
+   */
   lastProcessedStreamId = snapshot.streamId;
 
   console.log(
-    `[engine] snapshot restored | streamId=${lastProcessedStreamId}`,
+    `[engine] snapshot restored | checkpoint=${lastProcessedStreamId}`,
   );
 
   console.log(
@@ -137,15 +165,58 @@ async function restoreSnapshot() {
 }
 
 /* ============================================================
- * PROCESS ONE REDIS EVENT
+ * APPLY EVENT TO ENGINE
+ *
+ * This function ONLY changes engine state.
+ *
+ * It does NOT publish a response.
+ *
+ * This is what makes replay safe.
  * ============================================================ */
 
-async function processEvent(
+async function applyEvent(
   streamId: string,
   message: Record<string, string>,
 ) {
   console.log(
-    `[engine] processing event | stream=${streamId} | type=${message.type}`,
+    `[engine] applying event | stream=${streamId} | type=${message.type}`,
+  );
+
+  const request = {
+    ...message,
+  };
+
+  engineManager(request);
+
+  /*
+   * The event is now incorporated into engine state.
+   *
+   * IMPORTANT:
+   * We advance the checkpoint only after successful application.
+   */
+  lastProcessedStreamId = streamId;
+}
+
+/* ============================================================
+ * PROCESS LIVE EVENT
+ *
+ * Live events:
+ *
+ *   apply to engine
+ *        ↓
+ *   publish response
+ *        ↓
+ *   ACK Redis message
+ *
+ * Replay events do NOT come through this function.
+ * ============================================================ */
+
+async function processLiveEvent(
+  streamId: string,
+  message: Record<string, string>,
+) {
+  console.log(
+    `[engine] processing live event | stream=${streamId} | type=${message.type}`,
   );
 
   const request = {
@@ -155,45 +226,30 @@ async function processEvent(
   const response = engineManager(request);
 
   /*
-   * engineManager() can return null for commands
-   * which don't produce a response.
+   * Commands which don't produce a response.
    */
   if (response === null) {
     lastProcessedStreamId = streamId;
 
     console.log(
-      `[engine] event processed without response | stream=${streamId}`,
+      `[engine] live event processed without response | stream=${streamId}`,
     );
 
     return;
   }
-
-  /*
-   * IMPORTANT:
-   *
-   * Backend ResponseManager expects:
-   *
-   * corelationId
-   * event
-   * eventId
-   * message
-   *
-   * Therefore DO NOT call this field "payload".
-   */
 
   const responseDto: Record<string, string> = {
     corelationId: message.corelationId ?? "",
     event: response.event ?? "",
     eventId: response.eventId ?? "",
     payload: JSON.stringify(response.payload),
+    timestamp:Date.now().toString()
   };
 
-  console.log("[engine] publishing response:", responseDto);
-
-  console.log("[engine] sender state:", {
-    isOpen: sender.isOpen,
-    isReady: sender.isReady,
-  });
+  console.log(
+    "[engine] publishing response:",
+    responseDto,
+  );
 
   const responseStreamId = await sender.xAdd(
     RESPONSE_STREAM,
@@ -206,32 +262,51 @@ async function processEvent(
   );
 
   /*
-   * Only checkpoint AFTER successful response publishing.
+   * IMPORTANT:
+   *
+   * Only mark the event processed after the response
+   * was successfully published.
    */
   lastProcessedStreamId = streamId;
 
   console.log(
-    `[engine] event processed | stream=${streamId}`,
+    `[engine] live event processed | stream=${streamId}`,
   );
 }
 
 /* ============================================================
- * RECOVER PENDING EVENTS
+ * REPLAY EVENTS AFTER SNAPSHOT
+ *
+ * THIS IS THE CORE RECOVERY MECHANISM.
+ *
+ * Snapshot:
+ *
+ *       C
+ *       ↓
+ * A B C D E F G H I J
+ *
+ * We replay:
+ *
+ * D E F G H I J
+ *
+ * regardless of whether Redis considers them pending.
+ *
+ * The snapshot checkpoint is the only boundary.
  * ============================================================ */
 
-async function recoverPendingEvents() {
-  console.log("[engine] recovering PEL...");
+async function replayFromCheckpoint() {
+  console.log(
+    `[engine] replaying events after checkpoint=${lastProcessedStreamId}`,
+  );
+
+  let replayed = 0;
 
   while (!shuttingDown) {
-    const response = await receiver.xReadGroup(
-      ENGINE_GROUP,
-      ENGINE_CONSUMER,
-      [
-        {
-          key: ENGINE_STREAM,
-          id: "0",
-        },
-      ],
+    const response = await receiver.xRead(
+      {
+        key: ENGINE_STREAM,
+        id: lastProcessedStreamId,
+      },
       {
         COUNT: 100,
       },
@@ -241,52 +316,106 @@ async function recoverPendingEvents() {
       break;
     }
 
-    let processedAnything = false;
-
     for (const stream of response) {
       for (const event of stream.messages) {
-        processedAnything = true;
-
-        console.log(
-          `[engine] recovering pending event | stream=${event.id} | type=${event.message.type}`,
+        /*
+         * Apply event to engine state only.
+         *
+         * DO NOT publish responses during replay.
+         */
+        await applyEvent(
+          event.id,
+          event.message,
         );
 
-        try {
-          await processEvent(
-            event.id,
-            event.message,
-          );
+        replayed++;
 
-          await receiver.xAck(
-            ENGINE_STREAM,
-            ENGINE_GROUP,
-            event.id,
-          );
+        console.log(
+          `[engine] replayed event | stream=${event.id}`,
+        );
+      }
+    }
+  }
 
-          console.log(
-            `[engine] pending event ACKed | stream=${event.id}`,
-          );
-        } catch (error) {
-          /*
-           * IMPORTANT:
-           *
-           * Do not kill the entire engine.
-           * Leave the message in PEL.
-           */
-          console.error(
-            `[engine] pending event failed | stream=${event.id}`,
-            error,
-          );
-        }
+  console.log(
+    `[engine] replay complete | replayed=${replayed} | checkpoint=${lastProcessedStreamId}`,
+  );
+}
+
+/* ============================================================
+ * ACK OLD PEL EVENTS
+ *
+ * Events already delivered to the old consumer may still be
+ * present in Redis PEL.
+ *
+ * After replaying from the authoritative snapshot checkpoint,
+ * those events have already been incorporated into engine state.
+ *
+ * We ACK PEL entries whose IDs are <= checkpoint.
+ *
+ * This prevents them from being processed again.
+ * ============================================================ */
+
+async function acknowledgeRecoveredPel() {
+  console.log("[engine] cleaning recovered PEL entries...");
+
+  while (!shuttingDown) {
+    const pending = await receiver.xPending(
+      ENGINE_STREAM,
+      ENGINE_GROUP,
+    );
+
+    if (pending.pending === 0) {
+      break;
+    }
+
+    const response = await receiver.xPending(
+      ENGINE_STREAM,
+      ENGINE_GROUP,
+      "-",
+      "+",
+      100,
+    );
+
+    if (!response || response.length === 0) {
+      break;
+    }
+
+    let acknowledged = 0;
+
+    for (const entry of response) {
+      /*
+       * Redis stream IDs are lexicographically ordered by
+       * sequence because they have the form:
+       *
+       * milliseconds-sequence
+       *
+       * For normal Redis stream IDs, this comparison is safe.
+       */
+      if (entry.id <= lastProcessedStreamId) {
+        await receiver.xAck(
+          ENGINE_STREAM,
+          ENGINE_GROUP,
+          entry.id,
+        );
+
+        acknowledged++;
+
+        console.log(
+          `[engine] stale PEL entry ACKed | stream=${entry.id}`,
+        );
       }
     }
 
-    if (!processedAnything) {
+    /*
+     * Nothing else can be cleaned right now.
+     */
+    if (acknowledged === 0) {
       break;
     }
   }
 
-  console.log("[engine] PEL recovery complete");
+  console.log("[engine] PEL cleanup complete");
 }
 
 /* ============================================================
@@ -320,11 +449,10 @@ async function consumeEvents() {
       for (const stream of response) {
         for (const event of stream.messages) {
           try {
-            await processEvent(
+            await processLiveEvent(
               event.id,
               event.message,
             );
-
 
             await receiver.xAck(
               ENGINE_STREAM,
@@ -342,17 +470,17 @@ async function consumeEvents() {
             );
 
             /*
-             * DO NOT THROW.
+             * DO NOT ACK.
              *
-             * Message remains in PEL and the
-             * consumer continues processing.
+             * Redis keeps this event in the PEL.
+             *
+             * It can therefore be recovered after restart.
              */
           }
         }
       }
     } catch (error) {
       if (shuttingDown) {
-        console.log("stutting down: from receiver error;")
         break;
       }
 
@@ -361,7 +489,7 @@ async function consumeEvents() {
         error,
       );
 
-     break;
+      break;
     }
   }
 }
@@ -374,10 +502,13 @@ async function createSnapshot() {
   try {
     const engine = Engine.create();
 
+    /*
+     * Snapshot checkpoint MUST correspond to the engine state.
+     */
     const streamId = lastProcessedStreamId;
+
     const snapshot = engine.getSnapshot();
 
-    // Validate snapshot before publishing
     const parsedSnapshot = JSON.parse(snapshot);
 
     const response = {
@@ -395,11 +526,10 @@ async function createSnapshot() {
     };
 
     const responseDto: Record<string, string> = {
-      // Snapshot isn't tied to a request.
       corelationId: "",
       event: response.event,
       eventId: response.eventId,
-      message: JSON.stringify(response.payload),
+      payload: JSON.stringify(response.payload),
     };
 
     console.log(
@@ -428,7 +558,7 @@ async function createSnapshot() {
  * ============================================================ */
 
 function startSnapshotScheduler() {
-   snapshotTimer = setInterval(
+  snapshotTimer = setInterval(
     () => {
       void createSnapshot();
     },
@@ -448,7 +578,8 @@ async function shutdown(signal: string) {
   if (shuttingDown) {
     return;
   }
-  clearTimeout(snapshotTimer);
+
+  clearInterval(snapshotTimer);
 
   shuttingDown = true;
 
@@ -520,10 +651,14 @@ async function main() {
   console.log("       PERPX ENGINE STARTING");
   console.log("====================================");
 
-
-
+  /*
+   * 1. Restore latest authoritative checkpoint.
+   */
   await restoreSnapshot();
 
+  /*
+   * 2. Ensure engine consumer group exists.
+   */
   await ensureConsumerGroup(
     ENGINE_STREAM,
     ENGINE_GROUP,
@@ -531,8 +666,7 @@ async function main() {
   );
 
   /*
-   * Response group is only needed if this engine
-   * actually consumes response-stream.
+   * 3. Ensure response consumer group exists.
    */
   try {
     await sender.xGroupCreate(
@@ -550,7 +684,9 @@ async function main() {
   } catch (error: any) {
     if (
       error?.message?.includes("BUSYGROUP") ||
-      error?.message?.includes("Consumer Group name already exists")
+      error?.message?.includes(
+        "Consumer Group name already exists",
+      )
     ) {
       console.log(
         `[engine] response group already exists | ${RESPONSE_GROUP}`,
@@ -560,10 +696,44 @@ async function main() {
     }
   }
 
-  await recoverPendingEvents();
+  /*
+   * ==========================================================
+   * 4. REPLAY EVERYTHING AFTER SNAPSHOT
+   * ==========================================================
+   *
+   * Snapshot:
+   *
+   *       C
+   *       ↓
+   * A B C D E F G H I J
+   *
+   * Replay:
+   *
+   *         D E F G H I J
+   *
+   * We DO NOT ask Redis which events are pending.
+   *
+   * The snapshot streamId is the authoritative checkpoint.
+   */
+  await replayFromCheckpoint();
 
+  /*
+   * 5. Clean PEL entries which are now already incorporated
+   *    into engine state.
+   */
+  await acknowledgeRecoveredPel();
+
+  /*
+   * 6. Start periodic snapshots.
+   */
   startSnapshotScheduler();
 
+  /*
+   * 7. Now transition to normal live consumption.
+   *
+   * XREADGROUP ">" receives events that have not yet been
+   * delivered to this consumer group.
+   */
   await consumeEvents();
 }
 

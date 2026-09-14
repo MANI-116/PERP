@@ -12,11 +12,20 @@ import {
   getFills,
   getMarkets,
   getDepth,
+  getOi,
+  getCandles,
+  getTicker,
+  getTickers
 } from '../handlers/queries.js';
 
 export function registerRoutes(app: Express) {
 
 
+  app.get('/candles/:marketId', getCandles);
+
+  // Tickers (24h stats derived from candles)
+  app.get('/ticker/:marketId', getTicker);
+  app.get('/tickers', getTickers);
   // Admin
   app.post('/admin/market', createMarket);
 
@@ -42,4 +51,5 @@ export function registerRoutes(app: Express) {
   app.get('/orders/:marketId', AuthMiddleWare, getAllOrders);
   app.get('/fills', AuthMiddleWare, getFills);
   app.get('/depth/:marketId', AuthMiddleWare, getDepth);
+  app.get('/oi/:marketId', getOi);
 }

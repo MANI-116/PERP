@@ -1,0 +1,19 @@
+{
+  "name": "candleaggregator",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+    "dependencies": {
+    "@repo/db": "*",
+    "@repo/types": "*",
+    "@types/redis": "^4.0.11",
+    "dotenv": "^17.4.2",
+    "redis": "^5.12.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

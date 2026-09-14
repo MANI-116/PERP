@@ -23,14 +23,14 @@ export function LoggedInHeader({username}:{username:string}){
 
 
   return  <>
-          <header className="flex flex-row justify-between mt-2">
-          <div className="flex flex-row items-center text-red-500 gap-2 ml-2">
+          <header className="mt-3 flex flex-row items-center justify-between gap-3">
+          <div className="flex flex-row items-center text-[#f23645] gap-2">
             <Image src="/site-icon.png" width={40} height={40} alt="site logo"></Image>
-            <h2 onClick={handleHomeNavigate} className="cursor-pointer text-lg font-bold tracking-tight"><span className="text-red-500">Perp</span><span className="text-zinc-100">X</span></h2>
+            <h2 onClick={handleHomeNavigate} className="cursor-pointer text-lg font-bold tracking-tight"><span className="text-[#f23645]">Perp</span><span className="text-zinc-100">X</span></h2>
           </div>
        
           <div className="flex items-center gap-3">
-            <span ref={usernameRef} onClick={handleUserClick} className="cursor-pointer text-zinc-200 hover:text-white text-sm transition-colors">{username}</span>
+            <span ref={usernameRef} onClick={handleUserClick} className="max-w-[120px] cursor-pointer truncate text-sm text-zinc-200 transition-colors hover:text-white sm:max-w-none">{username}</span>
             <UserModal isOpen={userDropdownOpen} onClose={() => setUserDropdownOpen(false)} anchorRect={anchorRect} />
           </div>
         </header>

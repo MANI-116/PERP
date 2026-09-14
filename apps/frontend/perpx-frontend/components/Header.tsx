@@ -18,19 +18,33 @@ export async function Header() {
     console.log('env not loaded');
     return <HeaderClient initialUser={defaultUser} />;
   }
-  console.log(cookieStore,passcode);
 
   const token = cookieStore.get("Authorization")?.value;
   if (token === undefined) {
     return <HeaderClient initialUser={defaultUser} />;
   }
 
+  let user: CustomJwtResponse | null = null;
+
   try {
-    const user = jwt.verify(token, passcode) as CustomJwtResponse;
-    return <HeaderClient initialUser={{ name: user.username, isLoggedIn: true, userId: user.userId }} />;
+    user = jwt.verify(token, passcode) as CustomJwtResponse;
   } catch (error) {
+    console.log("header: invalid token", error);
+  }
+
+  if (!user) {
     return <HeaderClient initialUser={defaultUser} />;
   }
+
+  return (
+    <HeaderClient
+      initialUser={{
+        name: user.username,
+        isLoggedIn: true,
+        userId: user.userId,
+      }}
+    />
+  );
 }
 
 

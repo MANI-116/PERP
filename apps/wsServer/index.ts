@@ -5,7 +5,7 @@ import { type EngineResponse, type RedisResponse} from "@repo/types"
 import { prisma } from "./lib/db.js"
 import { handleSubscribe, handleUnsubscribe } from "./handlers/index.js"
 import { config } from "./config.js"
-
+import { startCandleWebSocketConsumer } from "./candleConsumer.js";
 const redisUrl = config.REDIS_URL;
 
 
@@ -45,6 +45,10 @@ server.listen(config.PORT, "0.0.0.0", () => {
     );
 });
 
+const stopCandleConsumer =
+    await startCandleWebSocketConsumer({
+        subscribers,
+    });
 
 wss.on("connection",(ws,request)=>{
 
@@ -112,15 +116,14 @@ while(true){
     const {messages:streamMessages} =stream;
     
     for(const streamMsg of streamMessages){
-        console.log("stream message-",streamMsg)
+      
         const {id} = streamMsg;
 
-        console.log("json -parsing the stream:",streamMsg);
-        const parsed = JSON.parse(streamMsg.message.payload!) as EngineResponse;
-        const {event, payload, eventId} = parsed;
-        console.log("event-",event);
-
+        const parsed = streamMsg.message;
+        let {event, payload, eventId, timestamp} = parsed;
+       
         // Event ID idempotency guard — skip already-processed events
+        console.log("[ws]:",parsed);
         if (event !== "SNAPSHOT" && eventId) {
             const evId = BigInt(eventId);
             if (evId <= lastProcessedEventId) {
@@ -132,12 +135,52 @@ while(true){
         }
 
         const allowedEvents = ["ORDER_ACCEPTED","ORDER_FILLED","ORDER_FILLED_PARTIALLY","DELETE_ORDER"]
-        if( !allowedEvents.includes(event) ){
+        if( !allowedEvents.includes(event!) ){
             await receiver.xAck("response-stream","websocketserver",id);
             continue;
         }
 
-        const message = payload
+        type candle = {
+          price:string,
+          qty:string
+        }
+         let candles :{timestamp:string, candles:candle[]}|null = null;
+
+        if(event === "ORDER_FILLED" || event === "ORDER_FILLED_PARTIALLY"){
+          console.log("payload of the order filled or partialluy filled:",payload);
+          const orderDetails = JSON.parse(payload as string);
+          console.log("order details:",orderDetails);
+           const {matchedOrders}= orderDetails;
+            candles= { timestamp,
+            candles:[]
+
+           }
+
+              for(const matchedOrder of matchedOrders){
+                const order = await prisma.order.findUnique({where:{orderId:matchedOrder.orderId}});
+                if(!order) throw new Error("order matched on the non existing order");
+                
+                const updateOrder = await prisma.order.update({
+                    where:{orderId:matchedOrder.orderId},
+                    data:{
+                        filled:{increment:BigInt(matchedOrder.qtyTransfered)},
+                        state:`${order.qty=== order.filled+BigInt(matchedOrder.qtyTransfered) ? "CLOSED":"FILLED" }`
+                    }
+                })
+                console.log("updated the order-",updateOrder);
+
+                candles.candles.push({qty:matchedOrder.qtyTransfered, price: matchedOrder.price})
+              
+            }
+
+        }
+
+         console.log(payload);
+        console.log("event-",event,"parsed:",parsed);
+        let message = JSON.parse(payload as string);
+
+
+  
         console.log("message from the response-stream-",message);
 
         //@ts-ignore
@@ -156,7 +199,7 @@ while(true){
         }
 
         const subs = subscribers.get(marketId);
-        
+        console.log("subs::::",subs);
         if(!subs) {
             console.log("invalid marketId - ",marketId);
             await receiver.xAck("response-stream","websocketserver",id);
@@ -168,7 +211,12 @@ while(true){
             console.log('sending messages to the subsriber')
         
             //@ts-ignore
-            subscriber.send(JSON.stringify({type:"update",data:message.updates}));
+            if(candles != null){
+
+              subscriber.send(JSON.stringify({type:"update",data:{marketId,book:message.updates,candles}}));
+            }else{
+              subscriber.send(JSON.stringify({type:"update",data:{marketId,book:message.updates}}));
+            }
         }
     
         await receiver.xAck("response-stream","websocketserver",id);

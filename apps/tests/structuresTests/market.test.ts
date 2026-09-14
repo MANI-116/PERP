@@ -753,3 +753,36 @@ describe("Market", () => {
 
   
 });
+
+describe("Market Open Interest", () => {
+  it("should be zero for an empty market", () => {
+    const market = createMarket();
+
+    expect(market.getOpenInterest()).toBe(0n);
+  });
+
+  it("should sum the qty of all open long positions", () => {
+    const market = createMarket();
+
+    market.createPosition("user1", 10n, 100n, "LONG", 100n);
+    market.createPosition("user2", 5n, 90n, "LONG", 50n);
+
+    expect(market.getOpenInterest()).toBe(15n);
+  });
+
+  it("should reflect a partial position close", () => {
+    const market = createMarket();
+
+    const { positionId } = market.createPosition(
+      "user1",
+      10n,
+      100n,
+      "LONG",
+      100n
+    );
+
+    market.PartialFillPosition(positionId, 120n, 4n);
+
+    expect(market.getOpenInterest()).toBe(6n);
+  });
+});

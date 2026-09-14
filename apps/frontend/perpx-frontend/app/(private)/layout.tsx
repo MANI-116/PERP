@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Provider, type UserInfo } from "@/providers/userState";
 import "../globals.css";
 import { Header } from "@/components/Header";
+import { MobileNav } from "@/components/ui/MobileNav";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
@@ -54,9 +55,10 @@ export default async function RootLayout({
   
       <Provider initialUser={initialUser}>
    
-        <div className="page-wrapper w-full">
+        <div className="page-wrapper ">
           <Header />
-          <main className="mt-4">{children}</main>
+          <main className="mt-4 mobile-content-pad">{children}</main>
+          <MobileNav />
         </div>
       </Provider>
    

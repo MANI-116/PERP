@@ -270,6 +270,26 @@ export class Market {
     return { success: true, qty: position.qty };
   }
 
+  /**
+   * Open interest for this market, in contracts.
+   *
+   * `positionsRef` holds every live position for the market, so
+   * summing the open long positions yields the total open
+   * contracts (the short side holds the same aggregate). Reading
+   * each position's own `qty` avoids relying on price-level
+   * bookkeeping, which is not updated by every mutation path.
+   */
+  getOpenInterest(): bigint {
+    let openInterest = 0n;
+    for (const positionNode of this.positionsRef.values()) {
+      const position = positionNode.value;
+      if (position.state === 'CLOSED') continue;
+      if (position.side !== 'LONG') continue;
+      openInterest += position.qty;
+    }
+    return openInterest;
+  }
+
  
 
   reserveClosedQty(positionId:string,orderId:string,qty:bigint){

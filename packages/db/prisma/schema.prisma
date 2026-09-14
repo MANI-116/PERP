@@ -69,8 +69,7 @@ model Transaction{
   createdAt DateTime @default(now())
 
 }
-
-model Market{
+model Market {
   id String @id @default(uuid())
   name String @unique
   symbol String @unique
@@ -80,9 +79,10 @@ model Market{
   lastPrice BigInt?
   takerRate BigInt
   makerRate BigInt
-  mmr       BigInt
-}
+  mmr BigInt
 
+  candles Candle[]
+}
 model Snapshot{
   id                  String   @id @default(uuid())
   snapshot            String
@@ -98,4 +98,24 @@ model EngineState{
   id                    String @id @default("singleton")
   lastProcessedEventId  BigInt @default(0)
   updatedAt             DateTime @updatedAt
+}
+
+
+model Candle {
+  id        String   @id @default(uuid())
+  marketId  String
+  interval  String
+  timestamp DateTime
+
+  open      BigInt
+  high      BigInt
+  low       BigInt
+  close     BigInt
+  volume    BigInt
+  trades    BigInt
+
+  market Market @relation(fields: [marketId], references: [id])
+
+  @@unique([marketId, interval, timestamp])
+  @@index([marketId, interval, timestamp])
 }

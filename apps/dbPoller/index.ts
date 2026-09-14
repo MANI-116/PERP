@@ -2,7 +2,7 @@ import { createClient } from "redis";
 import { prisma} from "./lib/db"
 import {  type EngineResponse } from "@repo/types"
 import { config } from "./config";
-
+import { startCandleConsumer } from "./candle/candleConsumer";
 const redisUrl = config.REDIS_URL
 
 const receiver = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
@@ -48,6 +48,7 @@ try {
 
 // Load last processed event ID from PostgreSQL on startup
 let lastProcessedEventId = 0n;
+void startCandleConsumer();
 try {
     const state = await prisma.engineState.findUnique({ where: { id: "singleton" } });
     if (state) {
@@ -92,14 +93,14 @@ while(true){
     const stream = response[0];
     if(stream === undefined) continue;
     for(const msg of stream.messages){
-        if(msg.message.message === undefined){
+        if(msg.message.payload === undefined){
             await receiver.xAck("response-stream","dbPoller",msg.id);
             continue;
         }
-        const message = JSON.parse(msg.message.message) as EngineResponse;
+      
 
-        console.log("message from the response stream-",message);
-        await dbWorker(message);
+        console.log("message from the response stream-",msg);
+        await dbWorker(msg.message as EngineResponse);
         
         await receiver.xAck("response-stream","dbPoller",msg.id);
     }
@@ -142,6 +143,7 @@ async function createMarket(message:EngineResponse){
 }
 async function storeSnapshot(message: EngineResponse) {
     try {
+      console.log("persisting the snapshot in the db:",message);
         if (message.event !== "SNAPSHOT") return;
         const { snapshot, lastEventId, liquidationCounters, streamId } = message.payload;
 
@@ -184,7 +186,7 @@ async function storeSnapshot(message: EngineResponse) {
 async function updateOrder(orderDetails:EngineResponse){
     try {
     if(orderDetails.event === "ORDER_ACCEPTED"){
-         const { side,qty, type, marketId,orderId,slippage,price,userId,state} = orderDetails.payload;
+         const { side,qty, type, marketId,orderId,slippage,price,userId,state} = JSON.parse(orderDetails.payload as string);
             const response = await prisma.order.create({
                 data:{
                     side,
@@ -201,7 +203,7 @@ async function updateOrder(orderDetails:EngineResponse){
             return;
         }
         if(orderDetails.event === "ORDER_REJECTED"){
-            const { side,qty, type, marketId,orderId,slippage,price,userId,state} = orderDetails.payload;
+            const { side,qty, type, marketId,orderId,slippage,price,userId,state} = JSON.parse(orderDetails.payload as string);
             const response = await prisma.order.create({
                 data:{
                     side,
@@ -219,7 +221,7 @@ async function updateOrder(orderDetails:EngineResponse){
         }
         
         if(orderDetails.event === "ORDER_FILLED" || orderDetails.event === "ORDER_FILLED_PARTIALLY"){
-            const {orderId,filled,price,matchedOrders,userId,side,type,marketId,qty,tax}= orderDetails.payload;
+            const {orderId,filled,price,matchedOrders,userId,side,type,marketId,qty,tax}= JSON.parse(orderDetails.payload);
             const order = await prisma.order.findUnique({where:{orderId}});
             if(!order){
                 const response = await prisma.order.create({
@@ -303,7 +305,7 @@ async function updateOrder(orderDetails:EngineResponse){
 
 async function deleteOrder(orderDetails: { event: string; payload: { success: boolean; orderId: string } }) {
     try {
-        const { success, orderId } = orderDetails.payload;
+        const { success, orderId } = JSON.parse(orderDetails.payload as string);
         if(!success) return;
         await prisma.order.update({
             where:{orderId},

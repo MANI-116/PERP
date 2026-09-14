@@ -89,7 +89,23 @@ export async function signin(req: Request, res: Response) {
     const token = jwt.sign({ userId: user.userId, username }, passCode, {
       expiresIn: '1d',
     });
+
+   if (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development")
     return res
+  .status(200)
+  .cookie("Authorization", token, {
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
+  })
+  .json({
+    message: "successfull",
+    username,
+    userId: user.userId,
+    token,
+  });
+    
+  return res
   .status(200)
   .cookie("Authorization", token, {
     domain: ".manivathala.com",

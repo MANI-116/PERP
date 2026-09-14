@@ -1,4 +1,10 @@
-import { Update } from "@/types";
+import {
+  Update,
+  OrderBookUpdate,
+  TradeTick,
+  MarketUpdate,
+  WsEnvelope,
+} from "@/types";
 import { API_BASE, WS_URL } from "./config";
 import { Queue } from "./queue";
 
@@ -14,26 +20,18 @@ import { Queue } from "./queue";
 
 export class Socket{
   private dispatcher:EventBus;
-  private socket:WebSocket;
-  private waitTillOpen:Promise<void>;
+  private socket:WebSocket | null = null;
+  private waitTillOpen:Promise<void> = Promise.resolve();
+  private resolveOpen:(() => void) | null = null;
+  private reconnectAttempts = 0;
+  private reconnectTimer:ReturnType<typeof setTimeout> | null = null;
+  private reconnectListeners = new Set<() => void>();
   private static instance:null | Socket;
-  
+
   private constructor(){
     this.dispatcher = EventBus.getInstance();
-    this.socket = new WebSocket(WS_URL);
-
-    //ready state promise
-    this.waitTillOpen = new Promise<void>((res,_)=>{
-      this.socket.onopen = ((e)=>{ 
-        console.log("ws connected")
-        res() })
-
-    });
-
-    //add onmessage hanlder
-    this.socket.addEventListener("message",this.messageHandler.bind(this))
-
-    }
+    this.connect();
+  }
 
   static getInstance(){
     if(this.instance){
@@ -45,15 +43,74 @@ export class Socket{
     return this.instance;
   }
 
-   messageHandler(message:MessageEvent){
-    this.dispatcher.dispatchEvent(message);
-    return;
+  private connect(){
+    this.socket = new WebSocket(WS_URL);
 
+    // Fresh promise for this connection attempt.
+    this.waitTillOpen = new Promise<void>((resolve)=>{
+      this.resolveOpen = resolve;
+    });
+
+    this.socket.addEventListener("open", ()=>{
+      console.log("[socket] connected");
+      this.reconnectAttempts = 0;
+      this.resolveOpen?.();
+      this.resolveOpen = null;
+
+      // Tell subscribers to re-establish their subscriptions.
+      for(const listener of this.reconnectListeners){
+        listener();
+      }
+    });
+
+    this.socket.addEventListener("message", this.messageHandler.bind(this));
+
+    this.socket.addEventListener("close", ()=>{
+      console.log("[socket] closed");
+      this.scheduleReconnect();
+    });
+
+    this.socket.addEventListener("error", (event)=>{
+      console.log("[socket] error", event);
+    });
+  }
+
+  private scheduleReconnect(){
+    if(this.reconnectTimer !== null){
+      return;
+    }
+
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 15000);
+    this.reconnectAttempts += 1;
+
+    console.log(`[socket] reconnecting in ${delay}ms`);
+
+    this.reconnectTimer = setTimeout(()=>{
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
+  }
+
+  onReconnect(listener:() => void){
+    this.reconnectListeners.add(listener);
+
+    return () => {
+      this.reconnectListeners.delete(listener);
+    };
+  }
+
+  messageHandler(message:MessageEvent){
+    this.dispatcher.dispatchEvent(message);
   }
 
   async send(message:any){
     await this.waitTillOpen;
-    await this.socket.send(message);
+
+    if(this.socket && this.socket.readyState === WebSocket.OPEN){
+      this.socket.send(message);
+    }else{
+      console.log("[socket] dropping message, socket not open");
+    }
   }
 
 }
@@ -68,10 +125,10 @@ export class Socket{
  */
 
 export class EventBus{
-  private eventMap:Map<string,(update:Update)=>void>;
+  private eventMap = new Map<string, Set<(data: any) => void>>();
   private static instance:EventBus | null
   private constructor(){
-    this.eventMap = new Map<string,(update:Update)=>void>();
+    this.eventMap = new Map<string,Set<(update:Update)=>void>>();
 
   }
 
@@ -85,26 +142,52 @@ export class EventBus{
     return this.instance;
   }
 
-  register(messageType:string,handler:(update:Update)=>void){
-    console.log("register-event:",messageType);
-    this.eventMap.set(messageType,handler);
 
+register(type: string, handler: (data: any) => void) {
+  let handlers = this.eventMap.get(type);
+  console.log("registering the ws handler:",type," --->handler:",type);
+
+  if (!handlers) {
+    handlers = new Set();
+    this.eventMap.set(type, handlers);
   }
-  dispatchEvent(event:MessageEvent){
-    const data = JSON.parse(event.data) ;
-    const { type } = data;
-    if(!type){
-      console.log("type doesnot defined");
+
+  handlers.add(handler);
+}
+
+unregister(type: string, handler: (data: any) => void) {
+  console.log("unregistering the handler:",type," handler:",handler);
+  this.eventMap.get(type)?.delete(handler);
+}
+
+  dispatchEvent(event: MessageEvent) {
+    let envelope: WsEnvelope;
+
+    try {
+      envelope = JSON.parse(
+        event.data,
+      ) as WsEnvelope;
+    } catch (error) {
+      console.error(
+        "[eventBus] failed to parse ws message",
+        error,
+      );
+
       return;
     }
-    const handler = this.eventMap.get(type);
-    if(!handler){
-      console.log("does not find the handler-",handler);
-      return;
+
+    const handlers = this.eventMap.get(
+      envelope.type,
+    );
+
+    if (!handlers) return;
+
+    for (const handler of handlers) {
+      handler(envelope.data);
     }
-    console.log("calling handler:")
-    handler(data.data);
   }
+
+
 }
 
 
@@ -120,68 +203,281 @@ export class EventBus{
  * 
  */
 
-export class MarketManager{
-  private socket:Socket;
-  private callbakckResolvers:Map<string,(value:unknown)=>void>;
-  private unsubscribeResolvers:Map<string,(value:unknown)=>void>;
-  private static instace:null|MarketManager;
-  private constructor(){
-    this.socket = Socket.getInstance();
-    this.callbakckResolvers = new Map<string,(value:unknown)=>void>();
-    this.unsubscribeResolvers = new Map<string,(value:unknown)=>void>();
 
-  }
+export type MarketEvent = "book" | "candle" | "ticker";
 
-  static getInstance(){
-    if(MarketManager.instace){
-      return MarketManager.instace;
-    }
-
-    MarketManager.instace = new MarketManager();
-    return MarketManager.instace;
-  }
-
-  
-
-  async subscribe(marketId:string,updateHanler:(update:Update)=>void){
-    console.log("subscribing to ws");
-    const eventBus = EventBus.getInstance();
-    const subscriptionReady =  new Promise((res,_)=>{
-      this.callbakckResolvers.set(marketId,res);
-    })
-    eventBus.register("subscribeStatus",(data)=>{
-      const resolver = this.callbakckResolvers.get(marketId);
-      if(!resolver){
-        console.log("did not find the resolver");
-        return;
-      }
-      resolver(data);
-    })
-    eventBus.register("update",updateHanler);
-    await this.socket.send(JSON.stringify({type:"subscribe",marketId}));
-     
-    await subscriptionReady;
-  
-
-  }
-
-  async unsubsribe(marketId:string){
-    console.log("unsubscribing");
-    const unsubscribePromise = new Promise((res,_)=>{
-      this.unsubscribeResolvers.set(marketId,res);
-    })
-    EventBus.getInstance().register("unsubscribeStatus",(data)=>{
-      const res = this.unsubscribeResolvers.get(marketId)!;
-      res(data);
-    })
-    await this.socket.send(JSON.stringify({type:"unsubscribe",marketId}));
-    const res = await unsubscribePromise;
-    console.log("unsubscribe status-",res);
-  
-
-  }
+export interface Ticker {
+  [key: string]: unknown;
 }
 
+type Handler<T> = (data: T) => void;
+
+interface MarketSubscribers {
+  book: Set<Handler<OrderBookUpdate>>;
+  candle: Set<Handler<TradeTick>>;
+  ticker: Set<Handler<Ticker>>;
+}
+
+export class MarketManager {
+  private static instance: MarketManager | null = null;
+
+  private readonly socket: Socket;
+  private readonly eventBus: EventBus;
+
+  /**
+   * marketId
+   *    ↓
+   * subscribers
+   *    ├── book
+   *    ├── candle
+   *    └── ticker
+   */
+  private readonly markets =
+    new Map<string, MarketSubscribers>();
+
+  /**
+   * Tracks the actual exchange-level subscription.
+   *
+   * One market = one websocket subscription.
+   */
+  private readonly subscribedMarkets =
+    new Set<string>();
+
+  private constructor() {
+    this.socket = Socket.getInstance();
+    this.eventBus = EventBus.getInstance();
+
+    /**
+     * EventBus only knows about websocket message types.
+     *
+     * It doesn't know about book/candle/ticker.
+     */
+    this.eventBus.register(
+      "update",
+      this.handleUpdate
+    );
+
+    /**
+     * Re-establish every subscription after a
+     * websocket reconnect.
+     */
+    this.socket.onReconnect(() => {
+      for (const marketId of this.subscribedMarkets) {
+        void this.socket.send(
+          JSON.stringify({ type: "subscribe", marketId }),
+        );
+      }
+    });
+  }
+
+  static getInstance(): MarketManager {
+    if (!MarketManager.instance) {
+      MarketManager.instance =
+        new MarketManager();
+    }
+
+    return MarketManager.instance;
+  }
+
+  // ==================================================
+  // PUBLIC SUBSCRIPTION API
+  // ==================================================
+
+  subscribe<T>(
+    marketId: string,
+    event: MarketEvent,
+    handler: Handler<T>,
+  ): () => void {
+    const market =
+      this.getOrCreateMarket(marketId);
+
+    const handlers =
+      market[event] as Set<Handler<T>>;
+
+    handlers.add(handler);
+
+    /**
+     * First consumer for this market causes
+     * the actual websocket subscription.
+     */
+    if (!this.subscribedMarkets.has(marketId)) {
+      void this.subscribeMarket(marketId);
+    }
+
+    /**
+     * Returning cleanup is ideal for React.
+     */
+    return () => {
+      this.unsubscribe(
+        marketId,
+        event,
+        handler,
+      );
+    };
+  }
+
+  unsubscribe<T>(
+    marketId: string,
+    event: MarketEvent,
+    handler: Handler<T>,
+  ): void {
+    const market =
+      this.markets.get(marketId);
+
+    if (!market) return;
+
+    const handlers =
+      market[event] as Set<Handler<T>>;
+
+    handlers.delete(handler);
+
+    /**
+     * Other consumers are still using this market.
+     */
+    if (!this.hasSubscribers(market)) {
+      this.markets.delete(marketId);
+
+      void this.unsubscribeMarket(marketId);
+    }
+  }
+
+  // ==================================================
+  // EVENTBUS → MARKETMANAGER
+  // ==================================================
+
+  private handleUpdate = (
+    data: MarketUpdate,
+  ): void => {
+
+    console.log("[marketManager] handler update:",data);
+    const market =
+      this.markets.get(data.marketId);
+
+    if (!market) return;
+
+    /**
+     * The websocket message may contain
+     * any combination of book/candle/ticker.
+     */
+
+    if (data.book !== undefined) {
+      this.dispatch(
+        market.book,
+        data.book,
+      );
+    }
+
+    if (data.candles !== undefined) {
+      this.dispatch(
+        market.candle,
+        data.candles,
+      );
+    }
+
+    if (data.ticker !== undefined) {
+      this.dispatch(
+        market.ticker,
+        data.ticker,
+      );
+    }
+  };
+
+  private dispatch<T>(
+    handlers: Set<Handler<T>>,
+    data: T,
+  ): void {
+    for (const handler of handlers) {
+      handler(data);
+    }
+  }
+
+  // ==================================================
+  // MARKET STORAGE
+  // ==================================================
+
+  private getOrCreateMarket(
+    marketId: string,
+  ): MarketSubscribers {
+    let market =
+      this.markets.get(marketId);
+
+    if (!market) {
+      market = {
+        book: new Set(),
+        candle: new Set(),
+        ticker: new Set(),
+      };
+
+      this.markets.set(
+        marketId,
+        market,
+      );
+    }
+
+    return market;
+  }
+
+  private hasSubscribers(
+    market: MarketSubscribers,
+  ): boolean {
+    return (
+      market.book.size > 0 ||
+      market.candle.size > 0 ||
+      market.ticker.size > 0
+    );
+  }
+
+  // ==================================================
+  // WEBSOCKET LIFECYCLE
+  // ==================================================
+
+  private async subscribeMarket(
+    marketId: string,
+  ): Promise<void> {
+    /**
+     * Race protection.
+     */
+    if (
+      this.subscribedMarkets.has(marketId)
+    ) {
+      return;
+    }
+
+    // Mark intent before sending so a reconnect can
+    // re-subscribe even if this first send is dropped.
+    this.subscribedMarkets.add(marketId);
+
+    console.log("[market-manager]:sending message for the market sub-",marketId);
+
+    await this.socket.send(
+      JSON.stringify({
+        type: "subscribe",
+        marketId:marketId,
+      }),
+    );
+  }
+
+  private async unsubscribeMarket(
+    marketId: string,
+  ): Promise<void> {
+    if (
+      !this.subscribedMarkets.has(marketId)
+    ) {
+      return;
+    }
+
+    await this.socket.send(
+      JSON.stringify({
+        type: "unsubscribe",
+        marketId,
+      }),
+    );
+
+    this.subscribedMarkets.delete(
+      marketId,
+    );
+  }
+}
 
 /**
  * Responsibility:
@@ -358,99 +654,147 @@ function cloneOrderBook(book: OrderBook): OrderBook {
  * does not manage socket connection
  */
 
-export class OrderbookStore{
-  private updates:Queue<Update>
-  private snapshot:OrderBook
-  private snapshotAvailable:boolean=false;
 
-  
-  private constructor(private marketId:string,private render:(orderbook:OrderBook)=>void){
+export class OrderbookStore {
+  private updates: Queue<Update>;
+  private snapshot: OrderBook;
+  private snapshotAvailable = false;
+  private updateHandler: (update: Update) => void;
+  private unsubscribeMarket: (() => void) | null = null;
+
+  private constructor(
+    private marketId: string,
+    private render: (orderbook: OrderBook) => void,
+  ) {
     this.updates = new Queue<Update>();
     this.snapshot = new OrderBook();
+
+    // IMPORTANT: keep the exact same function reference
+    // for subscribe and unsubscribe.
+    this.updateHandler = this.applyUpdate.bind(this);
   }
 
-  static async getOrderBook(marketId:string,render:(orderbook:OrderBook)=>void){
-    const store = new OrderbookStore(marketId,render);
+  static async getOrderBook(
+    marketId: string,
+    render: (orderbook: OrderBook) => void,
+  ) {
+    const store = new OrderbookStore(marketId, render);
 
-  
     const marketManager = MarketManager.getInstance();
 
-    //wait till subscribed and register the update handler
-    await marketManager.subscribe(marketId,store.applyUpdate.bind(store));
+      store.unsubscribeMarket = marketManager.subscribe(
+    marketId,
+    "book",
+    store.updateHandler,
+  );
 
-    // Fetch snapshot 
-    await store.setSnapshot();
+    // Fetch snapshot. If it fails, release the subscription
+    // so we don't leak a websocket listener.
+    try {
+      await store.setSnapshot();
+    } catch (error) {
+      store.unsubscribe();
+      throw error;
+    }
+
     store.render(cloneOrderBook(store.snapshot));
 
-    // Apply any queued pre-snapshot updates
-    while(!store.updates.isEmpty()){
+    // Apply updates received while snapshot was loading.
+    while (!store.updates.isEmpty()) {
       const update = store.updates.dequeue();
-      if(!update) break;
-      if(update.uid < store.snapshot.snapshotUid) continue;
+
+      if (!update) break;
+
+      if (update.uid < store.snapshot.snapshotUid) {
+        continue;
+      }
+
       store.snapshot.update(update);
     }
 
-    store.snapshotAvailable=true;
+    store.snapshotAvailable = true;
 
-    render(cloneOrderBook(store.snapshot));
+    store.render(cloneOrderBook(store.snapshot));
+
+    // IMPORTANT: return the store so the hook can unsubscribe.
+    return store;
   }
 
-  async setSnapshot(){
+  async setSnapshot() {
     try {
-              const res = await fetch(`${API_BASE}/depth/${this.marketId}`,{credentials:"include"});
-              const data = await res.json();
-              console.log("data from the get depth-",data);
-              //data type {success:boolean,asks:[[level(string),totalQty(string)]],uidAtSnapshot:number}
-              if(!data.data.asks && !data.data.bids){
-                console.log("data format is not matched:")
-                return;
-              }
-              if( data.data.asks instanceof  Array){
-    
-                for(let i = 0 ; i < data.data.asks.length ; i++){
-                  const level = data.data.asks[i];
-                  this.snapshot.addAskLevel(Number(level[0]),Number(level[1]));
-                }
-    
-              }
-    
-              if(data.data.bids instanceof Array){
-                  for(let i = 0 ; i < data.data.bids.length ; i++){
-                  const level = data.data.bids[i];
-                  this.snapshot.addBidLevel(Number(level[0]),Number(level[1]));                   
-                }
-              }
-              
-              this.snapshot.snapshotUid = data.data.uidAtSnapshot;
-    
-            } catch (error) {
-              console.log("error happend while fetching the depth-",error);
-              
-            }
+      const res = await fetch(
+        `${API_BASE}/depth/${this.marketId}`,
+        {
+          credentials: "include",
+        },
+      );
 
+      const data = await res.json();
+
+      const depth = data?.data;
+
+      if (!depth?.asks && !depth?.bids) {
+        console.log("depth snapshot format not matched");
+        return;
+      }
+
+      if (depth.asks instanceof Array) {
+        for (const level of depth.asks) {
+          this.snapshot.addAskLevel(
+            Number(level[0]),
+            Number(level[1]),
+          );
+        }
+      }
+
+      if (depth.bids instanceof Array) {
+        for (const level of depth.bids) {
+          this.snapshot.addBidLevel(
+            Number(level[0]),
+            Number(level[1]),
+          );
+        }
+      }
+
+      this.snapshot.snapshotUid =
+        depth.uidAtSnapshot;
+
+    } catch (error) {
+      console.log(
+        "error happened while fetching the depth-",
+        error,
+      );
+
+      throw error;
+    }
   }
 
-  applyUpdate(update:Update){
-               
-    console.log("updating snapshot-")
-    if(this.snapshotAvailable){
-      //update the snapshot
+  applyUpdate(update: Update) {
+    console.log("updating snapshot-");
+
+    if (this.snapshotAvailable) {
       const res = this.snapshot.update(update);
-      console.log("updating existing snap:",res);
-      
-    }else{
-      //push to the queue
-      console.log("pushing to the queue")
+
+      console.log(
+        "updating existing snap:",
+        res,
+      );
+    } else {
+      console.log("pushing to the queue");
+
       this.updates.enqueue(update);
     }
 
     this.render(cloneOrderBook(this.snapshot));
-
-
   }
 
 
+unsubscribe(): void {
+  if (!this.unsubscribeMarket) {
+    return;
+  }
 
-  
-
+  this.unsubscribeMarket();
+  this.unsubscribeMarket = null;
+}
 }

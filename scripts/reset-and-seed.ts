@@ -1,5 +1,5 @@
 import { createClient } from "redis";
-import { prisma } from "./db";
+import { prisma } from "../apps/backend/lib/db.ts";
 import { config } from "../config";
 
 if (config.ENVIRONMENT === "production") {
@@ -12,11 +12,9 @@ async function hashPassword(password: string) {
 
 const redisUrl = config.REDIS_URL;
 
-const redis =
-  config.ENVIRONMENT === "local" ||
-  config.ENVIRONMENT === "development"
-    ? createClient({ url: redisUrl })
-    : createClient({
+console.log("config:",config);
+
+const redis = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development")? createClient({ url: redisUrl }): createClient({
         url: redisUrl,
         socket: {
           tls: true,
@@ -59,7 +57,8 @@ try {
       "Market",
       "User",
       "Snapshot",
-      "EngineState"
+      "EngineState",
+      "Candle"
     RESTART IDENTITY CASCADE;
   `);
 

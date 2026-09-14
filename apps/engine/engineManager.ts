@@ -22,19 +22,29 @@ export function createUser(userId: string): CreateUserResponse {
   const response = userManager.addUser(user);
   return { ...response, userId };
 }
+type CreateMarketPayload = {
+  marketId: string;
+  symbol: string;
+  markPrice?: string;
+  mmr?: string;
+  takerRate?: string;
+  makerRate?: string;
+  taxationScale?: string;
+};
 
-export function createMarket(marketId: string): CreateMarketResponse {
+export function createMarket(
+  market: CreateMarketPayload
+): CreateMarketResponse {
   return marketManager.addMarket({
-    marketId,
-    markPrice: 0n,
-    mmr: 5n,
-    takerRate: 5n,
-    makerRate: 2n,
-    taxationScale: 100n,
-    symbol: 'SOLUSDT',
+    marketId: market.marketId,
+    symbol: market.symbol,
+    markPrice: BigInt(market.markPrice ?? "0"),
+    mmr: BigInt(market.mmr ?? "5"),
+    takerRate: BigInt(market.takerRate ?? "5"),
+    makerRate: BigInt(market.makerRate ?? "2"),
+    taxationScale: BigInt(market.taxationScale ?? "100"),
   });
 }
-
 
 /**
  * 
@@ -133,16 +143,15 @@ export function engineManager(request: any): EngineResponse | null{
       };
     }
 
-    case 'CREATE_MARKET': {
-      const { marketId } = request.payload;
-      const payload = createMarket(marketId);
-      return {
-        
-        event: 'CREATE_MARKET',
-        eventId: engine.getNextEventId().toString(),
-        payload,
-      };
-    }
+   case 'CREATE_MARKET': {
+        const payload = createMarket(request.payload);
+
+        return {
+          event: 'CREATE_MARKET',
+          eventId: engine.getNextEventId().toString(),
+          payload,
+        };
+      }
     case 'RAMP_USER': {
       const { userId, credit } = request.payload;
       const payload = rampUser({ userId, credit: BigInt(credit) });
@@ -212,6 +221,15 @@ export function engineManager(request: any): EngineResponse | null{
       return {
         
         event: 'GET_DEPTH',
+        eventId: engine.getNextEventId().toString(),
+        payload: response,
+      };
+    }
+    case 'GET_OI': {
+      const { marketId } = request.payload;
+      const response = getOpenInterest(marketId);
+      return {
+        event: 'GET_OI',
         eventId: engine.getNextEventId().toString(),
         payload: response,
       };
@@ -289,5 +307,21 @@ function getDepth(marketId: string) {
   return {
     success: true,
     data: { uidAtSnapshot: market.orderbook.getUpdateId() - 1, asks, bids },
+  };
+}
+
+function getOpenInterest(marketId: string) {
+  const market = marketManager.getMarket(marketId);
+  if (!market) {
+    return { success: false, error: 'market not found' };
+  }
+
+  return {
+    success: true,
+    data: {
+      marketId,
+      openInterest: market.getOpenInterest().toString(),
+      markPrice: market.markPrice.toString(),
+    },
   };
 }

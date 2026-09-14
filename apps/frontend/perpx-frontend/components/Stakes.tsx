@@ -51,7 +51,7 @@ export function Stakes({ market }: { market: string }){
       } else if (selectedTab === "POSITIONS") {
         const res = await fetch(`${API_BASE}/positions/open/${market}`, { credentials: "include" });
         const data = await res.json();
-        setPositions(data.payload?.data?.positions ?? []);
+        setPositions(data.data?.positions ?? data.payload?.data?.positions ?? []);
       } else {
         const res = await fetch(`${API_BASE}/fills?skip=${skip}&take=${PAGE_SIZE}`, { credentials: "include" });
         const data = await res.json();
@@ -67,7 +67,7 @@ export function Stakes({ market }: { market: string }){
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  useEffect(() => { setPage(1); }, [selectedTab]);
+  useEffect(() => { setPage(1); setTotal(0); }, [selectedTab]);
 
   function prevPage() { setPage(p => Math.max(1, p - 1)); }
   function nextPage() { setPage(p => p + 1); }
@@ -83,16 +83,21 @@ export function Stakes({ market }: { market: string }){
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900">
-      <div className="flex flex-row gap-4 border-b border-zinc-800 px-4 py-2">
+    <div className="mx-2 mt-2 min-h-[220px] rounded-xl bg-zinc-900">
+      <div className="flex items-center gap-1 border-b border-zinc-800 p-1.5">
         {(["ORDERS", "POSITIONS", "FILLS"] as const).map((tab) => (
-          <div
+          <button
             key={tab}
+            type="button"
             onClick={() => setSelectedTab(tab)}
-            className={`${selectedTab === tab ? "text-white" : "text-zinc-500 hover:text-zinc-300"} text-sm cursor-pointer transition-colors`}
+            className={`h-8 flex-1 rounded-md text-[13px] font-medium transition-colors ${
+              selectedTab === tab
+                ? "bg-white/[0.08] text-white"
+                : "text-[#8b929b] hover:text-zinc-300"
+            }`}
           >
-            {tab === "ORDERS" ? "orders" : tab === "POSITIONS" ? "positions" : "fills"}
-          </div>
+            {tab === "ORDERS" ? "Orders" : tab === "POSITIONS" ? "Positions" : "Fills"}
+          </button>
         ))}
       </div>
       <div className="p-4">
@@ -104,13 +109,13 @@ export function Stakes({ market }: { market: string }){
           ) : (
             <>
               {orders.map((o) => (
-                <div key={o.orderId} className="flex flex-row items-center gap-x-4 border-b border-zinc-800 py-2.5">
-                  <span className={o.side === "LONG" ? "text-green-500 w-12 text-sm font-medium" : "text-red-500 w-12 text-sm font-medium"}>{o.side}</span>
-                  <span className="w-16 text-zinc-400 text-sm">{o.type}</span>
-                  <span className="w-20 text-zinc-300 text-sm">qty: {o.qty}</span>
-                  <span className="w-24 text-zinc-400 text-sm">filled: {o.filled}</span>
-                  <span className="w-24 text-zinc-400 text-sm">price: {o.price/100_000_000}</span>
-                  <button onClick={() => cancelOrder(o.orderId)} className="ml-auto text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1.5 rounded transition-colors">Cancel</button>
+                <div key={o.orderId} className="grid grid-cols-2 items-center gap-x-4 gap-y-1 border-b border-zinc-800 py-3 md:flex md:flex-row md:gap-x-4 md:py-2.5">
+                  <span className={(o.side === "LONG" ? "text-[#0ecb81]" : "text-[#f23645]") + " text-sm font-medium md:w-12"}>{o.side}</span>
+                  <span className="text-sm text-zinc-400 md:w-16">{o.type}</span>
+                  <span className="text-sm text-zinc-300 md:w-20">qty: {o.qty}</span>
+                  <span className="text-sm text-zinc-400 md:w-24">filled: {o.filled}</span>
+                  <span className="text-sm text-zinc-400 md:w-24">price: {o.price/100_000_000}</span>
+                  <button onClick={() => cancelOrder(o.orderId)} className="col-span-2 justify-self-start text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1.5 rounded transition-colors md:col-span-1 md:ml-auto">Cancel</button>
                 </div>
               ))}
               <Pagination page={page} total={total} onPrev={prevPage} onNext={nextPage} />
@@ -120,12 +125,12 @@ export function Stakes({ market }: { market: string }){
           positions.length === 0 ? (
             <div className="text-zinc-500 text-sm">no open positions</div>
           ) : (
-            positions.map((p, i) => (
-              <div key={i} className="flex flex-row items-center gap-x-4 border-b border-zinc-800 py-2.5">
-                <span className={p.side === "LONG" ? "text-green-500 w-12 text-sm font-medium" : "text-red-500 w-12 text-sm font-medium"}>{p.side}</span>
-                <span className="w-24 text-zinc-300 text-sm">qty: {p.qty}</span>
-                <span className="w-24 text-zinc-400 text-sm">entry: {p.avgPrice/100_000_000}</span>
-                <span className="w-24 text-zinc-400 text-sm">liq: {p.liquidationPrice/100_000_000}</span>
+            positions.map((p) => (
+              <div key={p.id} className="grid grid-cols-2 items-center gap-x-4 gap-y-1 border-b border-zinc-800 py-3 md:flex md:flex-row md:gap-x-4 md:py-2.5">
+                <span className={(p.side === "LONG" ? "text-[#0ecb81]" : "text-[#f23645]") + " text-sm font-medium md:w-12"}>{p.side}</span>
+                <span className="text-sm text-zinc-300 md:w-24">qty: {p.qty}</span>
+                <span className="text-sm text-zinc-400 md:w-24">entry: {p.avgPrice/100_000_000}</span>
+                <span className="text-sm text-zinc-400 md:w-24">liq: {p.liquidationPrice/100_000_000}</span>
               </div>
             ))
           )
@@ -135,9 +140,9 @@ export function Stakes({ market }: { market: string }){
           ) : (
             <>
               {fills.map((f, i) => (
-                <div key={i} className="flex flex-row items-center gap-x-4 border-b border-zinc-800 py-2.5">
-                  <span className="w-24 text-zinc-300 text-sm">qty: {f.qty}</span>
-                  <span className="w-24 text-zinc-400 text-sm">price: {f.price/100_000_000}</span>
+                <div key={i} className="grid grid-cols-2 items-center gap-x-4 gap-y-1 border-b border-zinc-800 py-3 md:flex md:flex-row md:gap-x-4 md:py-2.5">
+                  <span className="text-sm text-zinc-300 md:w-24">qty: {f.qty}</span>
+                  <span className="text-sm text-zinc-400 md:w-24">price: {f.price/100_000_000}</span>
                 </div>
               ))}
               <Pagination page={page} total={total} onPrev={prevPage} onNext={nextPage} />

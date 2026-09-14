@@ -23,6 +23,7 @@ export class Queue<T>{
       this.tail = node;
     }else if(this.tail){
     //non empty queue
+      this.tail.right = node;
       this.tail = node;
     }
     this.length++;

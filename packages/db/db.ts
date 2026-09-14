@@ -35,7 +35,14 @@ export async function createPrismaClient(url: string) {
   const ipv4Host = await resolveIPv4Host(originalHost);
   console.log(`[db] resolved ${originalHost} -> ${ipv4Host} (forcing IPv4)`);
 
-  const pool = new Pool({
+  const pool = (process.env.NODE_ENV === "local" || process.env.NODE_ENV === "development") ? new Pool({
+    host: ipv4Host,                                   // connect via raw IPv4
+    port: parsed.port ? Number(parsed.port) : 5432,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.replace(/^\//, ""),
+    connectionTimeoutMillis: 15_000
+  }):new Pool({
     host: ipv4Host,                                   // connect via raw IPv4
     port: parsed.port ? Number(parsed.port) : 5432,
     user: decodeURIComponent(parsed.username),

@@ -81,6 +81,16 @@ export interface GetDepthResponse{
     data?:{uidAtSnapshot:number,asks:string[][],bids:string[][]}
 }
 
+export interface GetOiResponse{
+    success:boolean,
+    error?:string,
+    data?:{
+        marketId:string,
+        openInterest:string,
+        markPrice:string
+    }
+}
+
 export interface TransmitPosition{
     id:string,
     userId:string,

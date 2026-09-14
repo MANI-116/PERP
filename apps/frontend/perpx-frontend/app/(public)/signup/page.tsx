@@ -2,7 +2,7 @@ import { SignUp } from "@/components/SignUp";
 
 export default function SignUpPage() {
   return (
-    <div className="flex flex-col items-center justify-center h-[100vh]">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4">
       <SignUp />
     </div>
   );

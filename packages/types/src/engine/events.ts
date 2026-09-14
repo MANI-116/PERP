@@ -1,5 +1,5 @@
-import type { CreateMarketRequest, CreateOrderRequest, CreateUserRequest, DeleteOrderRequest, GetDepthRequest, GetEquityRequest, GetPositionsRequest, RampUserRequest, RestoreSnapshotRequest } from "./request";
-import type { OrderFilledResponse, OrderFilledPartiallyResponse, OrderRejectedResponse, OrderAcceptedResponse, CreateUserResponse, CreateMarketResponse, RampUserResponse, DeleteOrderResponse, OpenPositionsResponse, ClosedPositionsResponse, GetEquityResponse, GetDepthResponse, SnapshotEvent, RestoreSnapshotResponse } from "./response";
+import type { CreateMarketRequest, CreateOrderRequest, CreateUserRequest, DeleteOrderRequest, GetDepthRequest, GetEquityRequest, GetOiRequest, GetPositionsRequest, RampUserRequest, RestoreSnapshotRequest } from "./request";
+import type { OrderFilledResponse, OrderFilledPartiallyResponse, OrderRejectedResponse, OrderAcceptedResponse, CreateUserResponse, CreateMarketResponse, RampUserResponse, DeleteOrderResponse, OpenPositionsResponse, ClosedPositionsResponse, GetEquityResponse, GetDepthResponse, GetOiResponse, SnapshotEvent, RestoreSnapshotResponse } from "./response";
 
 export type EngineEvent = "ORDER_FILLED_PARTIALLY"|"ORDER_FILLED"|"ORDER_ACCEPTED"|"ORDER_REJECTED";
 
@@ -35,6 +35,7 @@ interface EventResponseMap{
     "GET_CLOSED_POSITIONS":ClosedPositionsResponse,
     "GET_EQUITY":GetEquityResponse,
     "GET_DEPTH":GetDepthResponse,
+    "GET_OI":GetOiResponse,
     "SNAPSHOT":SnapshotEvent,
     "RESTORE_SNAPSHOT":RestoreSnapshotResponse
 }
@@ -51,5 +52,6 @@ interface EngineRequestMap{
         "GET_CLOSED_POSITIONS":GetPositionsRequest,
         "GET_EQUITY":GetEquityRequest,
         "GET_DEPTH":GetDepthRequest,
+        "GET_OI":GetOiRequest,
         "RESTORE_SNAPSHOT":RestoreSnapshotRequest
 }
