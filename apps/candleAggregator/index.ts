@@ -41,7 +41,7 @@ export async function startCandleConsumer() {
   await receiver.connect();
 
   try {
-    await receiver.xGroupCreate(STREAM, GROUP, "0", {
+    await receiver.xGroupCreate(STREAM, GROUP, "$", {
       MKSTREAM: true,
     });
   } catch (error) {
@@ -129,7 +129,8 @@ async function processTrade(message: EngineResponse) {
    * Otherwise this currently falls back to the response timestamp.
    */
   const eventTimestamp = Number(
-    payload.timestamp ?? message.timestamp
+    payload.timestamp ??
+      (message as { timestamp?: string }).timestamp
   );
 
   if (!eventTimestamp) {
@@ -269,6 +270,60 @@ async function applyTradeToCandles(
       },
     });
   }
+}
+
+/**
+ * Materialise the empty buckets between the previous stored candle and the
+ * new candle as flat candles (open = high = low = close = previous close,
+ * zero volume) so the chart has no gaps.
+ */
+async function fillMissingCandles(
+  marketId: string,
+  interval: string,
+  intervalMs: number,
+  previous: { timestamp: Date; close: bigint },
+  candleTimestamp: number
+) {
+  const start = previous.timestamp.getTime() + intervalMs;
+
+  if (start >= candleTimestamp) {
+    return;
+  }
+
+  const rows: {
+    marketId: string;
+    interval: string;
+    timestamp: Date;
+    open: bigint;
+    high: bigint;
+    low: bigint;
+    close: bigint;
+    volume: bigint;
+    trades: bigint;
+  }[] = [];
+
+  for (let t = start; t < candleTimestamp; t += intervalMs) {
+    rows.push({
+      marketId,
+      interval,
+      timestamp: new Date(t),
+      open: previous.close,
+      high: previous.close,
+      low: previous.close,
+      close: previous.close,
+      volume: 0n,
+      trades: 0n,
+    });
+  }
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  await prisma.candle.createMany({
+    data: rows,
+    skipDuplicates: true,
+  });
 }
 
 startCandleConsumer();

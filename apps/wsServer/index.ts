@@ -5,7 +5,6 @@ import { type EngineResponse, type RedisResponse} from "@repo/types"
 import { prisma } from "./lib/db.js"
 import { handleSubscribe, handleUnsubscribe } from "./handlers/index.js"
 import { config } from "./config.js"
-import { startCandleWebSocketConsumer } from "./candleConsumer.js";
 const redisUrl = config.REDIS_URL;
 
 
@@ -44,11 +43,6 @@ server.listen(config.PORT, "0.0.0.0", () => {
         config.PORT
     );
 });
-
-const stopCandleConsumer =
-    await startCandleWebSocketConsumer({
-        subscribers,
-    });
 
 wss.on("connection",(ws,request)=>{
 

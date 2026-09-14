@@ -2,7 +2,6 @@ import { createClient } from "redis";
 import { prisma} from "./lib/db"
 import {  type EngineResponse } from "@repo/types"
 import { config } from "./config";
-import { startCandleConsumer } from "./candle/candleConsumer";
 const redisUrl = config.REDIS_URL
 
 const receiver = (config.ENVIRONMENT === "local" || config.ENVIRONMENT === "development") ? createClient({ url: redisUrl }):createClient({ url: redisUrl, socket: {tls:true, rejectUnauthorized:false}  });
@@ -48,7 +47,6 @@ try {
 
 // Load last processed event ID from PostgreSQL on startup
 let lastProcessedEventId = 0n;
-void startCandleConsumer();
 try {
     const state = await prisma.engineState.findUnique({ where: { id: "singleton" } });
     if (state) {
