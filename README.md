@@ -35,7 +35,7 @@ Client → Backend → Command Stream → Matching Engine → Response Stream
 The system separates the trading client, application/backend layer, authoritative matching engine, persistence, and realtime delivery.
 
 <p align="center">
-  <img src="./docs/peps.png" alt="PerpX System Architecture" width="100%" />
+  <img src="./docs/perps.png" alt="PerpX System Architecture" width="100%" />
 </p>
 
 ### System Components
